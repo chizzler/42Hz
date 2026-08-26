@@ -1,0 +1,12 @@
+# Build output
+build/
+build-*/
+
+# Upstream source — fetched, never tracked.
+# 42Hz is a patch-on-tarball derivative; see docs/spike-01-frontend-coupling.md
+upstream/
+*.tar.gz
+*.tar.zst
+
+# Local Claude Code overrides (settings.json is shared; .local.json is not)
+.claude/settings.local.json
