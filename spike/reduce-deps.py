@@ -32,7 +32,11 @@ edit("src/CMakeLists.txt", src)
 
 # ---- main.cpp: strip KDE theming ----
 def main(s):
+    # NOTE: main.cpp includes KDE headers in BOTH the CamelCase forwarding
+    # form (<KIconTheme>) and the lowercase real form (<kicontheme.h>).
+    # Both must go; matching only the former leaves a fatal missing header.
     for inc in ["#include <KColorSchemeManager>", "#include <KIconTheme>",
+                "#include <kicontheme.h>",
                 '#include "kcolor_manager.hpp"']:
         s = s.replace(inc + "\n", "")
     s = s.replace("  KIconTheme::initTheme();\n", "")

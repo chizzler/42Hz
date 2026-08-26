@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-26
 **Milestone:** 1 (repository and feasibility spike)
-**Status:** static analysis complete; build verification pending
+**Status:** complete — build-verified 2026-08-27
 
 ## Upstream base
 
@@ -130,17 +130,51 @@ engine.loadFromModule("ee.ui", "Main");
 
 ## Verification status
 
-Static analysis only. **Not yet built.** Two residual risks:
+**Verified by build on 2026-08-27.** The reduced tree configures, compiles, and
+links against Qt 6.11.2 / KF6 6.29.0 with CMake 4.4.2 + Ninja.
 
-1. `KLocalizedString` / `KF6::I18nQml` may transitively pull KDE UI components at
-   link time.
-2. `ConfigWidgets` retains a QtWidgets dependency; the app also constructs
-   `QApplication` (not `QGuiApplication`) for `QSystemTrayIcon`.
+```
+cmake -B build -S . -G Ninja -DCMAKE_BUILD_TYPE=Release   # exit 0
+ninja -C build                                            # exit 0 -> build/src/easyeffects (13M)
+```
 
-Neither threatens the architecture — both are link-level details.
+Linked KF6 libraries, spike vs. stock:
 
-Build prerequisites missing on this machine:
-`cmake`, `extra-cmake-modules`, `ninja`, `intltool`, `mold`, `ladspa`.
+| | KF6 libraries linked |
+|---|---|
+| Stock `/usr/bin/easyeffects` | Archive, BreezeIcons, **ColorScheme**, ConfigCore, ConfigGui, CoreAddons, GuiAddons, I18n, I18nQml, **IconThemes** |
+| 42Hz spike | ConfigCore, ConfigGui, CoreAddons, I18n, I18nQml |
+
+Dropped: `Archive`, `BreezeIcons`, `ColorScheme`, `GuiAddons`, `IconThemes`.
+Total shared-library count falls from 129 to 123. No Kirigami, QtGraphs, or
+QQC2-desktop-style objects appear in the linked binary.
+
+### Both pre-registered risks resolved
+
+1. **`KLocalizedString` / `KF6::I18nQml` pulling KDE UI in transitively — did not
+   occur.** `libKF6I18nQml` links cleanly with no Kirigami dependency.
+2. **`Qt::Graphs` — confirmed QML-only.** Removing it broke no C++ compilation.
+
+`ConfigWidgets` remains in `find_package` but contributes no runtime KF6 library
+beyond the Config pair; it is a candidate for further removal.
+
+### One correction to the patch
+
+The first build failed on a single target — `main.cpp` — with
+`fatal error: kicontheme.h: No such file or directory`. `main.cpp` includes KDE
+headers in **both** the CamelCase forwarding form (`<KIconTheme>`) and the
+lowercase real form (`<kicontheme.h>`); the initial patch matched only the
+former. Fixed in `spike/reduce-deps.py`.
+
+Notably, **208 of 209 targets compiled before that failure**, and the only
+failing file was the application entry point that 42Hz replaces regardless. No
+core file required modification.
+
+### Not yet done
+
+The binary has **not been executed**. Running it starts a PipeWire processing
+graph that creates virtual sink/source nodes and may alter default routing, so
+it should be launched deliberately, not as part of a build check.
 
 ## Conclusion
 
