@@ -7,7 +7,8 @@ from [EasyEffects](https://github.com/wwmm/easyeffects).
 hosting, and replaces its Kirigami frontend with a responsive, spectrum-first
 QML interface that tracks the active Omarchy theme.
 
-See [`project.md`](project.md) for design goals and milestones.
+See [`project.md`](project.md) for design goals and milestones, and
+[`docs/devlog.md`](docs/devlog.md) for the running development log.
 
 **Status:** early design and architecture. Not yet buildable as 42Hz.
 

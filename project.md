@@ -67,6 +67,17 @@ Preset management, input effects editing, the complete EasyEffects effect catalo
 
 One process and one package are preferred until measured reliability or multiple independent clients justify a backend service. The internal facade must make a later split possible without designing an IPC protocol prematurely.
 
+### Upstream baseline
+
+The derivation rests on the following properties of EasyEffects `v8.2.8`, verified by build:
+
+- Upstream is already a Qt6/QML application. The derivation is a frontend replacement within one toolkit, not a port.
+- KDE/Kirigami coupling is confined to the application entry point and the KDE colour-scheme adapter. The PipeWire, DSP, routing, preset, and state layers carry no KDE UI dependency and require no modification.
+- The spectrum is already exposed to QML as a pull-based singleton API delivering points pre-resampled to a configurable point count. Responsive resampling is therefore a settings binding, not new DSP code.
+- No upstream QML is reusable. 42Hz supplies its entire frontend, which dominates the effort in milestones 2-4.
+
+Measured coupling, the patch inventory, and build verification are recorded in `docs/spike-01-frontend-coupling.md`.
+
 42Hz is a derived application, not a remote control for an installed EasyEffects executable. A release build contains the EasyEffects-derived core it was tested against; EasyEffects does not need to be installed or running.
 
 ## Window and interaction behavior
@@ -113,7 +124,7 @@ Future effects use the same capability-driven pattern and appear only when suppo
 
 42Hz must fully and continuously adapt to the Omarchy theme selected by the user. Theme integration is functional behavior, not a one-time approximation at launch.
 
-- Read the resolved palette from `~/.local/state/omarchy/current/theme/colors.toml` when available.
+- Read the resolved palette from `~/.local/state/omarchy/current/theme/colors.toml`, and per-surface role overrides from the adjacent `shell.toml`, when available. A theme may ship `shell.toml` directly to override the generated file.
 - Map the complete usable palette into semantic UI tokens, including background levels, foreground levels, muted state, accent, selection, warning, error, and spectrum colors.
 - Follow the active Omarchy font and text scaling where exposed.
 - Watch the atomically replaced current-theme state and apply changes live without restarting the application or audio graph.
@@ -121,6 +132,8 @@ Future effects use the same capability-driven pattern and appear only when suppo
 - Derive contrast-safe fallbacks when a theme omits a value or produces an illegible pairing.
 - Start with built-in fallback tokens if Omarchy state is unavailable.
 - Keep all 42Hz mappings inside the application; never edit `/usr/share/omarchy/`, stock themes, or user configuration.
+
+Omarchy's own shell is a Quickshell (QML) application, so 42Hz and the desktop shell share a toolkit. `/usr/share/omarchy/shell/Commons/Color.qml` is the reference implementation for resolving `colors.toml` and `shell.toml` into surface roles, including the `-alpha` companion keys and gradient-token handling.
 
 Theme fidelity includes light and dark themes, but signal clarity, focus visibility, and readable contrast take priority over literal color reuse.
 
