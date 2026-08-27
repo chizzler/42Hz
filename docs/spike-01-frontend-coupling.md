@@ -172,6 +172,9 @@ core file required modification.
 
 ### Not yet done
 
+*Superseded 2026-08-27 by `docs/spike-02-first-run.md`, which executed the binary.
+Retained as written; this is a dated record, not a live status page.*
+
 The binary has **not been executed**. Running it starts a PipeWire processing
 graph that creates virtual sink/source nodes and may alter default routing, so
 it should be launched deliberately, not as part of a build check.

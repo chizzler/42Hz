@@ -5,7 +5,25 @@
 - **Public name:** 42Hz
 - **Executable:** `42hz`
 - **Working directory:** `~/Work/42Hz/`
-- **Status:** early design and architecture
+- **Status:** early design and architecture. The EasyEffects-derived core builds and runs; the 42Hz frontend does not exist yet. Current state is tracked in `docs/devlog.md`, not here.
+
+### How to read this document
+
+Sections carry different weight, and it matters which is which — much of this was
+written before the derived core had ever been executed.
+
+**Commitments** are settled and should be argued with rather than quietly
+revised: the product principles, the initial scope, the architecture and its
+single-process constraint, the licensing and upstream obligations, the
+milestones, and the non-goals.
+
+**Sketches** are provisional and expected to change on contact with a running
+system. They are marked where they appear. A sketch is a record of current
+intent, not a specification to build against; if implementation contradicts one,
+the sketch is what gives way.
+
+Findings graduate into this document from `docs/devlog.md` once durable. Evidence
+lives in `docs/spike-*.md`.
 
 ## Product goal
 
@@ -75,16 +93,17 @@ The derivation rests on the following properties of EasyEffects `v8.2.8`, verifi
 - KDE/Kirigami coupling is confined to the application entry point and the KDE colour-scheme adapter. The PipeWire, DSP, routing, preset, and state layers carry no KDE UI dependency and require no modification.
 - The spectrum is already exposed to QML as a pull-based singleton API delivering points pre-resampled to a configurable point count. Responsive resampling is therefore a settings binding, not new DSP code.
 - No upstream QML is reusable. 42Hz supplies its entire frontend, which dominates the effort in milestones 2-4.
+- Spectrum delivery to a plain-QtQuick frontend is verified by execution, not only by inspection: a live signal renders through the derived core with no Kirigami, QtGraphs, or KDE style present (`docs/spike-02-first-run.md`).
 
-Measured coupling, the patch inventory, and build verification are recorded in `docs/spike-01-frontend-coupling.md`.
+Measured coupling, the patch inventory, and build verification are recorded in `docs/spike-01-frontend-coupling.md`. First execution of the derived core — live spectrum delivery, graph topology, routing behaviour, and teardown — is recorded in `docs/spike-02-first-run.md`.
 
 42Hz is a derived application, not a remote control for an installed EasyEffects executable. A release build contains the EasyEffects-derived core it was tested against; EasyEffects does not need to be installed or running.
 
 ## Window and interaction behavior
 
-42Hz uses a conventional Wayland toplevel with a stable application ID such as `io.omarchy.42hz`. Hyprland owns placement and window management. 42Hz supplies a sensible initial size, remembers valid user geometry where appropriate, and remains fully usable when tiled, floated, resized, moved between monitors, or made fullscreen.
+42Hz uses a conventional Wayland toplevel with a stable application ID such as `io.omarchy.42hz`. Reassigning identity is broader than the application ID: the derived core also carries EasyEffects' config paths (`~/.config/easyeffects/db/`), virtual node names (`easyeffects_sink`, `easyeffects_source`), and filter node names (`ee_soe_*`, `ee_sie_*`). Until all of these are reassigned, every development run must isolate `XDG_CONFIG_HOME` or it will read and write the user's real EasyEffects settings. Hyprland owns placement and window management. 42Hz supplies a sensible initial size, remembers valid user geometry where appropriate, and remains fully usable when tiled, floated, resized, moved between monitors, or made fullscreen.
 
-The layout responds to available space rather than switching among rigid product modes:
+The layout responds to available space rather than switching among rigid product modes. The three tiers below are a *sketch* — useful names for regions of a continuum, not breakpoints to implement:
 
 - **Minimal:** spectrum, signal state, and essential processing status.
 - **Compact:** spectrum plus active application streams and concise mix controls.
@@ -108,7 +127,15 @@ Preserve EasyEffects semantics rather than reducing audio to a single ambiguous 
 - change routing only after the replacement processing path is confirmed live;
 - fall back to a valid physical endpoint if the graph fails or disappears.
 
-42Hz should cooperate with Omarchy's EasyEffects-aware audio behavior. The feasibility spike must determine whether retaining compatible PipeWire properties is sufficient or whether Omarchy should also recognize a distinct 42Hz processing identity.
+Omarchy's speaker tuning is a **native PipeWire filter-chain**, not an EasyEffects preset. `/usr/share/omarchy/default/audio/tunings/` ships `filter-chain.conf` files fitted by measurement from an EasyEffects profile, redistributing no upstream asset. Conflicting with the EasyEffects package therefore costs Omarchy's tuning nothing. The coexistence problem is 42Hz chained behind a filter-chain sink — an ordering and endpoint-resolution question — not 42Hz versus EasyEffects.
+
+### DSP-sink volume resolution
+
+Omarchy resolves a selected DSP sink to the physical sink whose volume it really controls, so that volume keys, the output switcher, and the shell audio panel act on the endpoint rather than on the level going *into* processing. `/usr/bin/omarchy-audio-output-sink` implements this by walking `pactl list sink-inputs`.
+
+**That walk cannot see the EasyEffects-derived output leg.** Measured in spike 02: the node feeding the physical device is `ee_soe_output_level`, a PipeWire filter node carrying no `media.class`, linked port to port. It is never enumerated as a sink-input, so the resolver falls through and returns the DSP sink itself.
+
+This is a resolver limitation, not an identity-negotiation problem, and no choice of node naming avoids it. 42Hz must resolve it one of three ways — presenting a real sink-input for the output leg (a core modification), extending the resolver to walk PipeWire links rather than PulseAudio sink-inputs (an upstream Omarchy contribution that also fixes EasyEffects and tuning chains), or accepting the fallback and its consequences. The second is preferred. Evidence and trade-offs are in `docs/spike-02-first-run.md`.
 
 For the first release, the Arch package should conflict with EasyEffects so two processors do not compete for the same streams and virtual-device role. Safe coexistence can be considered later only after application IDs, PipeWire nodes, settings, presets, autostart, and routing ownership are isolated and tested.
 
@@ -159,7 +186,11 @@ Startup proceeds in stages:
 
 The application should recover from PipeWire restarts and device churn without a UI restart. It must never leave the default route pointing at a dead 42Hz node. Tests must cover forced termination as well as graceful shutdown.
 
+Partially verified in spike 02: under both `SIGTERM` and `SIGKILL`, PipeWire reaped the virtual nodes and the default sink was unchanged. That run never made the virtual sink the default, so it did not exercise the case the requirement exists for — killing the process while the default route points *at* it. That case remains untested and is the one that matters.
+
 ## Command surface
+
+*Sketch.* The shape below is provisional: it was drafted before any of it existed, and the split between what the running process owns and what a separate control binary owns is unsettled. Treat it as a statement of the interaction the command surface should support, not as a committed argument grammar.
 
 Provide a small stable command interface for keybindings, scripting, and diagnostics:
 
@@ -192,6 +223,40 @@ Ship one reproducible Arch package containing the application, desktop entry, sy
 - track and integrate upstream changes at planned intervals.
 
 Generally useful backend-decoupling fixes may be offered upstream, but they are not a prerequisite for progress.
+
+### Upstream working copy
+
+The repository does not vendor EasyEffects source. `spike/fetch.sh` fetches and
+verifies the pinned base into `upstream/`; `spike/reduce-deps.py` applies the
+complete patch inventory to it. A clean checkout reaches a built binary in three
+commands and needs nothing tracked but the patch script.
+
+The base is pinned three ways: the upstream commit, a checksum of the downloaded
+archive, and a checksum of the extracted file tree. The last of these exists
+because GitHub generates release archives on demand and does not guarantee they
+are byte-stable, so a repackaged archive must be distinguishable from changed
+source. Changed packaging warns and continues; changed source refuses to build.
+
+**The extracted tree is disposable.** Re-running `fetch.sh` deletes and
+re-extracts it without prompting, and takes any build directory inside it along.
+
+This is the mechanism that makes the small-patch-inventory obligation
+enforceable rather than aspirational. A modification that is not in
+`reduce-deps.py` does not survive the next fetch, so no upstream edit can
+quietly become load-bearing, and the patch inventory cannot drift out of step
+with what is actually being built. Discarding the build directory is part of the
+guarantee, not a cost of it: a rebuilt source tree deserves a fresh build, and a
+build reflecting a source state that no longer exists is precisely the
+inconsistency this arrangement prevents.
+
+Consequently:
+
+- Never treat a hand edit under `upstream/` as done. Prototype there freely, then
+  fold the change into `reduce-deps.py` and re-run the cycle before relying on it.
+- Every change to the derived core is a change to the patch script. Reviewing
+  `reduce-deps.py` is reviewing the entire delta against upstream.
+- A version bump is a change to the pinned values in `fetch.sh` followed by
+  re-verification of each patch entry against the new base.
 
 ## Milestones
 

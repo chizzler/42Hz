@@ -10,7 +10,8 @@ QML interface that tracks the active Omarchy theme.
 See [`project.md`](project.md) for design goals and milestones, and
 [`docs/devlog.md`](docs/devlog.md) for the running development log.
 
-**Status:** early design and architecture. Not yet buildable as 42Hz.
+**Status:** early design and architecture. The EasyEffects-derived core builds
+and runs against the pinned upstream base; the 42Hz frontend does not exist yet.
 
 ## Derivation and attribution
 
@@ -32,7 +33,28 @@ KDE colour-scheme adapter (`kcolor_manager`).
 
 Modifications against the upstream base are recorded in
 [`docs/spike-01-frontend-coupling.md`](docs/spike-01-frontend-coupling.md) and
-applied by [`spike/reduce-deps.py`](spike/reduce-deps.py).
+applied by [`spike/reduce-deps.py`](spike/reduce-deps.py). Runtime behaviour of
+the derived core is recorded in
+[`docs/spike-02-first-run.md`](docs/spike-02-first-run.md).
+
+## Building the derived core
+
+Upstream source is fetched and verified, never tracked:
+
+```sh
+./spike/fetch.sh
+./spike/reduce-deps.py upstream/easyeffects-8.2.8
+cmake -B upstream/easyeffects-8.2.8/build -S upstream/easyeffects-8.2.8 \
+      -G Ninja -DCMAKE_BUILD_TYPE=Release
+ninja -C upstream/easyeffects-8.2.8/build
+```
+
+`upstream/` is disposable — re-running `fetch.sh` replaces it wholesale,
+build directory included. Never hand-edit it; changes to the derived core
+belong in `spike/reduce-deps.py`. See *Upstream working copy* in
+[`project.md`](project.md).
+
+Requires Qt 6, KF6 (Config, CoreAddons, I18n), CMake, and Ninja.
 
 42Hz is not affiliated with or endorsed by the EasyEffects project, nor by
 Omarchy.

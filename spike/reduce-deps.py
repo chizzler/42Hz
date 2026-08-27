@@ -1,5 +1,37 @@
+#!/usr/bin/env python3
+"""Apply the 42Hz dependency reduction to an extracted EasyEffects tree.
+
+    ./spike/reduce-deps.py upstream/easyeffects-8.2.8
+
+This is the whole patch inventory: five files touched, none of them in the
+PipeWire, DSP, routing, preset, or state layers. Keep it small -- every entry
+here is an upstream edit that must be re-verified on each version bump.
+
+The edit is DESTRUCTIVE and IN-PLACE: it deletes files and rewrites others.
+Point it at a freshly extracted tree, never at one you have hand-edited.
+See docs/spike-01-frontend-coupling.md for the rationale behind each change.
+"""
+
 import re, pathlib, sys
-root = pathlib.Path("/tmp/claude-1000/-home-chee-Work-42Hz/3098ccf0-1dff-4961-b532-c84719de4a63/scratchpad/spike-42hz")
+
+if len(sys.argv) != 2:
+    sys.exit(f"usage: {sys.argv[0]} <extracted-easyeffects-tree>")
+
+root = pathlib.Path(sys.argv[1]).resolve()
+
+# Refuse anything that is not recognisably an EasyEffects source tree, so a
+# mistyped path cannot start deleting files somewhere else.
+for marker in ("CMakeLists.txt", "src/main.cpp", "src/effects_base.cpp"):
+    if not (root / marker).is_file():
+        sys.exit(f"error: {root} is not an EasyEffects source tree (missing {marker})")
+
+# kcolor_manager.cpp is removed below, so its absence means this tree has
+# already been patched. Re-running would fail confusingly part-way through;
+# fail clearly instead and let the caller re-extract.
+if not (root / "src/kcolor_manager.cpp").is_file():
+    sys.exit(f"error: {root} is already patched -- re-extract the tree first")
+
+print(f"patching {root}")
 
 def edit(p, fn):
     f = root / p
@@ -126,3 +158,5 @@ Window {
 }
 ''')
 print("  wrote minimal src/contents/ui/Main.qml (plain QtQuick, no Kirigami)")
+
+print("done -- patch inventory applied to", root)
