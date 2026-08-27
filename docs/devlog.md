@@ -15,6 +15,8 @@ status and narrative stay here. Detailed evidence lives in `docs/spike-*.md`.
 
 ## 2026-08-27 (afternoon) — Reproducible build, and first light
 
+**Commit:** `75cdbd5`
+
 Two threads: making this morning's build reproducible, and executing the derived
 binary for the first time. Evidence in `docs/spike-02-first-run.md`.
 
