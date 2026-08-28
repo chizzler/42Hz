@@ -15,7 +15,7 @@ status and narrative stay here. Detailed evidence lives in `docs/spike-*.md`.
 
 ## 2026-08-28 — Identity reassignment, and closing milestone 1
 
-**Commit:** _(pending)_
+**Commit:** `581621d`
 
 The rename spike 02 called for, then the milestone-1 checks that were still
 open. Evidence in `docs/spike-03-identity.md`.
