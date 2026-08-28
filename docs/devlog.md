@@ -92,9 +92,10 @@ character class. Nothing in the coupling map predicted this; only execution did.
 Same build figures as spike 02 — 209/209 targets, 13M, 123 libraries, five KF6
 — so identity cost no dependencies.
 
-- **Config isolation, unfenced.** `~/.config/42hz/db` created; `~/.config/easyeffects`
-  byte-identical across every run this session. `XDG_CONFIG_HOME` fencing is no
-  longer required, which was the whole point.
+- **Config isolation, unfenced.** Settings land in `~/.config/42hz/db/42hzrc`;
+  `~/.config/easyeffects` unchanged across a *forced* write. `XDG_CONFIG_HOME`
+  fencing is no longer required, which was the whole point. This took two
+  attempts — see below.
 - **Real application streams.** `mpv`, `ffplay` and `paplay` concurrently, all
   enumerated, none ignored, full chain confirmed to the physical device.
 - **EQ LV2 URI validated both ways.** `para_equalizer_x32_lr` instantiates and

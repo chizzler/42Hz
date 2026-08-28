@@ -22,7 +22,9 @@ the PipeWire graph. All of it now derives from constants at the top of
 |---|---|---|---|
 | Application ID | `com.github.wwmm.easyeffects` | `io.github.chizzler.42Hz` | `CMakeLists.txt`, `tags_app.hpp` |
 | Executable | `easyeffects` | `42hz` | `src/CMakeLists.txt` (`OUTPUT_NAME`) |
-| Config / KConfig db | `~/.config/easyeffects/db` | `~/.config/42hz/db` | `db_manager.cpp` |
+| Config directory | `~/.config/easyeffects/db` | `~/.config/42hz/db` | `db_manager.cpp` |
+| KConfig file paths | `easyeffects/db/*rc` | `42hz/db/*rc` | 38 × `contents/kcfg/*.kcfg` |
+| Application settings file | `easyeffectsrc` | `42hzrc` | `contents/kcfg/*.kcfg` |
 | Presets dir | `~/.config/easyeffects` | `~/.config/42hz` | follows `APPLICATION_DOMAIN` |
 | Single-instance lock | `$XDG_RUNTIME_DIR/easyeffects.lock` | `.../42hz.lock` | `util.cpp` |
 | Single-instance socket | `$XDG_RUNTIME_DIR/EasyEffectsServer` | `.../42HzServer` | `tags_local_server.hpp` |
@@ -154,9 +156,31 @@ identity work cost no dependencies.
 
 ### Configuration isolation — the reason for this spike
 
-Run **unfenced**, with no `XDG_CONFIG_HOME` redirection:
+**This was got wrong once, and the way it was wrong is the useful part.**
 
-- `~/.config/42hz/db/` created.
+`db_manager.cpp` holds the only *obvious* config path, and renaming it produced
+a build that created `~/.config/42hz/db/` and looked correct. It was not.
+Every KConfig object writes to the path declared in its own
+`<kcfgfile name="…"/>`, and all 38 `.kcfg` files hard-coded
+`easyeffects/db/*rc`. The directory `db_manager.cpp` created stayed empty while
+settings went on landing in the user's real `~/.config/easyeffects/db/`.
+
+The first verification missed it because **KConfig only writes when a setting
+changes.** A checksum taken minutes after startup showed the file untouched and
+was reported as proof. It was proof of nothing: the first setting to change was
+window geometry, and it leaked into the user's `easyeffectsrc` later the same
+session — `height` and `width`, nothing destructive, and restored from the
+backup taken before the first run.
+
+The lesson is about the shape of the test, not the bug. *Verifying that a write
+did not happen is worthless unless you first force a write.* The corrected test
+starts the app, changes a setting through the CLI (`-b 1`), quits cleanly, and
+only then compares.
+
+Run **unfenced**, with no `XDG_CONFIG_HOME` redirection, and with a setting
+deliberately changed before the comparison:
+
+- `~/.config/42hz/db/42hzrc` created **and written to**.
 - `$XDG_RUNTIME_DIR/42hz.lock` and `42HzServer` created, alongside pre-existing
   `easyeffects.lock` and `EasyEffectsServer` from earlier sessions.
 - `~/.config/easyeffects/` SHA-256 identical before and after — and again after

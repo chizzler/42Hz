@@ -361,6 +361,36 @@ def target_object(s):
         "          util::str_to_num(target_object, serial)) {")
 
 
+# ---- contents/kcfg/*.kcfg: the KConfig file paths ----
+#
+# THIS is where settings actually land. db_manager.cpp only creates the
+# directory; every KConfig object writes to the path declared in its own .kcfg
+# <kcfgfile name="..."/>, and all 38 of them hard-code "easyeffects/db/*rc".
+#
+# Renaming db_manager.cpp alone therefore produced a build that created an empty
+# ~/.config/42hz/db/ and went on writing the user's real
+# ~/.config/easyeffects/db/easyeffectsrc -- silently, and only when a setting
+# actually changed, which is why a checksum taken right after startup showed
+# nothing wrong. Window geometry was the first thing to change and the first
+# thing to leak.
+def kcfg_paths(root):
+    n = 0
+    for f in sorted((root / "src/contents/kcfg").glob("*.kcfg")):
+        t = f.read_text()
+        if 'kcfgfile name="easyeffects/db/' not in t:
+            sys.exit(f"error: {f.name} has no easyeffects/db kcfgfile path -- upstream has moved")
+        t = t.replace('kcfgfile name="easyeffects/db/easyeffectsrc"',
+                      f'kcfgfile name="{APP_SLUG}/db/{APP_SLUG}rc"')
+        # The remaining 37 are named for the PLUGIN they configure (equalizerrc,
+        # autogainrc, ...), not the application, so only the path moves.
+        t = t.replace('kcfgfile name="easyeffects/db/', f'kcfgfile name="{APP_SLUG}/db/')
+        f.write_text(t)
+        n += 1
+    if n == 0:
+        sys.exit("error: no .kcfg files found -- upstream has moved")
+    print(f"  patched {n} kcfg files (KConfig paths -> {APP_SLUG}/db/)")
+
+
 # --- phase 1 edits ---
 edit("CMakeLists.txt", top_deps)
 edit("src/CMakeLists.txt", src_deps)
@@ -383,6 +413,7 @@ edit("src/autostart.cpp", autostart)
 edit("src/global_shortcuts.cpp", shortcuts)
 edit("src/global_shortcuts.hpp", shortcuts)
 edit("src/contents/CMakeLists.txt", contents_cmake)
+kcfg_paths(root)
 edit("src/tags_local_server.hpp", local_server)
 edit("src/test_signals.cpp", test_signals)
 edit("src/main.cpp", about)
