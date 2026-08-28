@@ -13,6 +13,134 @@ status and narrative stay here. Detailed evidence lives in `docs/spike-*.md`.
 
 ---
 
+## 2026-08-28 — Identity reassignment, and closing milestone 1
+
+**Commit:** _(pending)_
+
+The rename spike 02 called for, then the milestone-1 checks that were still
+open. Evidence in `docs/spike-03-identity.md`.
+
+### The rename was larger than an application ID, and one constant wide
+
+Sixteen distinct surfaces carried Easy Effects' identity: application ID,
+executable name, KConfig database path, presets directory, single-instance lock
+*and socket*, logging category, virtual sink and source names and descriptions,
+DSP filter node prefix, node groups, test-tone node, internal media classes,
+desktop entry, metainfo, icons, and the portal autostart token. All of them now
+derive from constants at the top of `reduce-deps.py`. The patch inventory grew
+from 5 files to 17, and from 162 lines to 513.
+
+**Decision: the CMake target keeps its upstream name.** Only `OUTPUT_NAME`
+changes, so the binary is `42hz` while the target stays `easyeffects`. Renaming
+the target would have touched roughly thirty lines in `src/CMakeLists.txt` plus
+`qt_add_qml_module`, for no effect visible outside the build directory. Identity
+is what the system sees, not what CMake calls things internally.
+
+**Decision: extend the copyright line, do not replace it.** The about box now
+reads `© 2017-2026 Wellington Wallace (Easy Effects) · 42Hz frontend © 2026 42Hz
+contributors`. Dropping the original notice from a GPL derivative would be a
+licence violation, not merely impolite. For the same reason the plugin vendor
+label `"Easy Effects"` in `tags_plugin_name.hpp` was deliberately left alone: it
+labels DSP that really is upstream's work, and relabelling it "42Hz" would
+misattribute someone else's code. Upstream's 65K metainfo — entirely Easy
+Effects release notes — was replaced with a short stub rather than shipped under
+the 42Hz application ID.
+
+**Decision: the application ID is `io.github.chizzler.42Hz`.** `project.md`
+suggested `io.omarchy.42hz`, but the README disclaims Omarchy affiliation and a
+reverse-DNS ID should name a domain its author controls. Settled and verified
+live on all four surfaces it reaches — binary, installed asset names, the
+Wayland class Hyprland reports, and the PipeWire `application.id` on every node.
+
+Its final component begins with a digit, which Flatpak application IDs and
+D-Bus bus names both forbid. Neither binds 42Hz — no D-Bus name is registered
+and the target is an Arch package — but a Flatpak would need a different ID.
+Worth noting only because it is the *second* digit-leading-name hazard today,
+after `42hz_sink`; the shape of this project's name keeps mattering.
+
+### The finding that justifies running things
+
+**Renaming the virtual sink to `42hz_sink` silently broke stream enumeration.**
+
+`target.object` is how a client pins its output, and PipeWire documents the value
+as "a name or serial number". The core decides which by trying a numeric parse
+first — via `util::str_to_num`, which wraps `std::from_chars` and checks only
+`ec`. But `from_chars` reports success on a **partial** parse. `"42hz_sink"`
+therefore parsed as serial `42`, matched nothing, and the stream was dropped
+from the mixer while staying perfectly audible.
+
+`ffplay` does exactly this. It vanished from the model. `mpv` and `paplay`,
+which set no target, were fine — so a casual test would have passed.
+
+The control mattered: stock Easy Effects v8.2.8, same host, same `ffplay`,
+targeting `easyeffects_sink`, accepted it. **We introduced this**, purely by
+choosing a name that begins with a digit. `42hz_source` had the same defect on
+the capture side.
+
+Fixed by treating `target.object` as a serial only when it is entirely digits —
+one replacement covering both blocks. **Deliberately not** fixed in `str_to_num`
+itself: 18 call sites, several parsing Equalizer-APO values where a trailing
+unit may rely on the lenient parse. Tightening the shared helper is the better
+long-term fix and is worth reporting upstream, but not blind.
+
+The lesson generalises past this bug. A rename is not a cosmetic operation when
+the new name has a different *shape* from the old one — leading digits, length,
+character class. Nothing in the coupling map predicted this; only execution did.
+
+### Milestone 1, closed
+
+Same build figures as spike 02 — 209/209 targets, 13M, 123 libraries, five KF6
+— so identity cost no dependencies.
+
+- **Config isolation, unfenced.** `~/.config/42hz/db` created; `~/.config/easyeffects`
+  byte-identical across every run this session. `XDG_CONFIG_HOME` fencing is no
+  longer required, which was the whole point.
+- **Real application streams.** `mpv`, `ffplay` and `paplay` concurrently, all
+  enumerated, none ignored, full chain confirmed to the physical device.
+- **EQ LV2 URI validated both ways.** `para_equalizer_x32_lr` instantiates and
+  links. Absent — forced with `bwrap --tmpfs` over `/usr/lib/lv2`, since the core
+  only *appends* `LV2_PATH` and cannot be starved by environment alone — it
+  reports `is not installed`, does not crash, and passes audio through. It also
+  emits ~580 `port symbol not found` warnings, so the frontend must surface
+  `packageInstalled` rather than expect anyone to read logs. A second LV2
+  dependency surfaced: the spectrum wants `comp_delay_x2_stereo` for A/V sync and
+  degrades gracefully without it.
+- **Teardown with the virtual sink as default** — the case spike 02 explicitly
+  refused to count as passing. Both `SIGTERM` and `SIGKILL`: nodes reaped,
+  default fell back to the physical sink on its own, every stream migrated and
+  kept playing. Restart over a stale lock and socket works.
+- **Coexistence.** 42Hz and stock Easy Effects run simultaneously with disjoint
+  node sets, and `42hz -q` quits only 42Hz. The socket rename was load-bearing:
+  sharing `EasyEffectsServer` would have meant 42Hz's command line driving Easy
+  Effects.
+
+### Speaker tuning, and a loop worth knowing about
+
+No Omarchy tuning exists on this host, so PipeWire's own `sink-eq6.conf`
+filter-chain sink stood in, run as a client via `pipewire -c` — non-persistent,
+no user config touched. Representative, since Omarchy's tuning is itself a
+native filter-chain. 42Hz chains in front of it cleanly and the spectrum keeps
+running.
+
+**But** the stock example pins no target on its playback stream, so that stream
+follows the default sink. Make a DSP virtual sink the default in that situation
+and the graph closes a feedback loop through it. Stock Easy Effects forms the
+identical loop, so this is inherited rather than ours — but it is a real failure
+mode for any user whose tuning chain does not pin its output, and it argues that
+42Hz should detect a cycle through its own sink instead of linking it.
+
+Re-confirmed while there: `omarchy-audio-output-sink` still returns its own
+argument, now with two filter layers it cannot walk instead of one.
+
+### Still open
+
+Per-stream volume, mute and processing-inclusion *control* is milestone 3 —
+enumeration is verified, acting on streams is not. Device churn was never
+exercised; the headset stayed plugged in. And the vendor prefix must be settled
+before anything is packaged.
+
+---
+
 ## 2026-08-27 (afternoon) — Reproducible build, and first light
 
 **Commit:** `75cdbd5`

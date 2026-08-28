@@ -10,8 +10,11 @@ QML interface that tracks the active Omarchy theme.
 See [`project.md`](project.md) for design goals and milestones, and
 [`docs/devlog.md`](docs/devlog.md) for the running development log.
 
-**Status:** early design and architecture. The EasyEffects-derived core builds
-and runs against the pinned upstream base; the 42Hz frontend does not exist yet.
+**Status:** milestone 1 complete. The EasyEffects-derived core builds and runs
+under its own identity against the pinned upstream base, and is verified against
+real application streams, the EQ LV2 provider and its failure path, default-sink
+routing, forced termination, and a speaker-tuning filter-chain. The 42Hz frontend
+does not exist yet.
 
 ## Derivation and attribution
 
@@ -31,11 +34,20 @@ production (FFTW analysis with GSL spline interpolation).
 Replaced components: the entire QML frontend, application entry point, and the
 KDE colour-scheme adapter (`kcolor_manager`).
 
-Modifications against the upstream base are recorded in
-[`docs/spike-01-frontend-coupling.md`](docs/spike-01-frontend-coupling.md) and
-applied by [`spike/reduce-deps.py`](spike/reduce-deps.py). Runtime behaviour of
-the derived core is recorded in
-[`docs/spike-02-first-run.md`](docs/spike-02-first-run.md).
+Reassigned identity: application ID, executable name, configuration and presets
+directories, single-instance lock and socket, logging category, PipeWire virtual
+node names, DSP filter node prefix, node groups, desktop entry, metainfo, and
+icons. 42Hz reads none of EasyEffects' settings and runs alongside it without
+collision.
+
+Modifications against the upstream base are applied by
+[`spike/reduce-deps.py`](spike/reduce-deps.py), which is the complete patch
+inventory. Dependency reduction is recorded in
+[`docs/spike-01-frontend-coupling.md`](docs/spike-01-frontend-coupling.md),
+first execution in
+[`docs/spike-02-first-run.md`](docs/spike-02-first-run.md), and identity
+reassignment plus milestone-1 verification in
+[`docs/spike-03-identity.md`](docs/spike-03-identity.md).
 
 ## Building the derived core
 
@@ -48,6 +60,9 @@ cmake -B upstream/easyeffects-8.2.8/build -S upstream/easyeffects-8.2.8 \
       -G Ninja -DCMAKE_BUILD_TYPE=Release
 ninja -C upstream/easyeffects-8.2.8/build
 ```
+
+The binary is `upstream/easyeffects-8.2.8/build/src/42hz`, and it installs under
+the application ID `io.github.chizzler.42Hz`.
 
 `upstream/` is disposable — re-running `fetch.sh` replaces it wholesale,
 build directory included. Never hand-edit it; changes to the derived core
