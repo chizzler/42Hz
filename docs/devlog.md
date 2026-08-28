@@ -15,7 +15,7 @@ status and narrative stay here. Detailed evidence lives in `docs/spike-*.md`.
 
 ## 2026-08-28 — Identity reassignment, and closing milestone 1
 
-**Commit:** `581621d`
+**Commit:** `b43a017`
 
 The rename spike 02 called for, then the milestone-1 checks that were still
 open. Evidence in `docs/spike-03-identity.md`.
@@ -143,7 +143,7 @@ before anything is packaged.
 
 ## 2026-08-27 (afternoon) — Reproducible build, and first light
 
-**Commit:** `75cdbd5`
+**Commit:** `b07e7b4`
 
 Two threads: making this morning's build reproducible, and executing the derived
 binary for the first time. Evidence in `docs/spike-02-first-run.md`.
@@ -264,7 +264,7 @@ behind a speaker-tuning filter-chain (none present on this host).
 
 ## 2026-08-27 — Reduced-dependency build verified
 
-**Commit:** `807099b`
+**Commit:** `4f04024`
 
 The reduced tree configures, compiles, and links against Qt 6.11.2 / KF6 6.29.0,
 producing a 13M binary. Linked KF6 libraries drop from 10 to 5 — `Archive`,
@@ -300,7 +300,7 @@ currently assumes patch-on-tarball.
 
 ## 2026-08-26 — Feasibility spike, and the repository
 
-**Commits:** `b96ed1f`
+**Commits:** `3b90e6c`
 
 **Decision: QML frontend, not a TUI.** The question raised was whether a TUI
 could carry a spectrum analyser, on the strength of BTOP's feel. It can —
