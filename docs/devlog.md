@@ -132,12 +132,51 @@ mode for any user whose tuning chain does not pin its output, and it argues that
 Re-confirmed while there: `omarchy-audio-output-sink` still returns its own
 argument, now with two filter layers it cannot walk instead of one.
 
+### Authorship, and a history rewrite
+
+**Decision: the application ID is settled as `io.github.chizzler.42Hz`**, after a
+typo'd first pass. The `io.github.<handle>` form is a verifiable ownership claim
+rather than decoration — AppStream uses it for uniqueness and Flathub enforces
+that you control the corresponding repo — so it should name the account that
+will actually host the project.
+
+**Decision: commits are authored under a real name with a dedicated public
+alias.** Real-name authorship is the dominant convention in the corner of FOSS
+42Hz occupies: the kernel mandates it through the DCO, GPL and system-tooling
+projects cluster near that norm, and EasyEffects itself is authored under a real
+name and address. Using a handle for 42Hz's half would also sit oddly beside the
+deliberate decision, made hours earlier, to *extend* rather than replace
+upstream's copyright line. The alias keeps a private address out of an archive
+that never forgets, without giving up attribution.
+
+Note for whoever pushes first: **GitHub links commits to an account by email,
+not by name.** The alias must be added and verified on the account, or these
+commits appear unlinked — no avatar, no contribution graph — and correcting that
+afterwards means another rewrite.
+
+**The rewrite itself.** The private address was in all five existing commits.
+Caught before any remote existed, which is the only point at which this is free;
+after a push it means force-rewriting published history while forks and mirrors
+keep the old values anyway.
+
+The interesting cost was self-inflicted. This log records commit hashes, and
+rewriting from the root changed all of them — orphaning four `**Commit:**`
+references here *and* two commit subjects that name a hash. Both were
+recoverable: `filter-branch` exposes a `map` function, so the subjects were
+remapped inside the same pass, and the log itself took a follow-up commit,
+which is the same backfill this project already does because a commit cannot
+contain its own hash.
+
+Worth keeping the convention — the hashes earn their place — but it now carries
+a standing cost: **a history rewrite is never a single command in this repo.**
+
 ### Still open
 
 Per-stream volume, mute and processing-inclusion *control* is milestone 3 —
 enumeration is verified, acting on streams is not. Device churn was never
-exercised; the headset stayed plugged in. And the vendor prefix must be settled
-before anything is packaged.
+exercised; the headset stayed plugged in. 42Hz still credits only Wellington
+Wallace in `KAboutData` and carries no AppStream `<developer>` element of its
+own; both go with the attribution work in milestone 6.
 
 ---
 

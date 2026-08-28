@@ -226,6 +226,8 @@ Ship one reproducible Arch package containing the application, desktop entry, sy
 - avoid implying official affiliation with EasyEffects or Omarchy;
 - track and integrate upstream changes at planned intervals.
 
+Contributions are authored under a real name with a dedicated public contact address, matching the convention of the GPL/system-tooling projects 42Hz sits among and of EasyEffects itself. This is not ceremony: the licensing decision recorded for 2026-08-26 turns on relicensing requiring agreement from every contributor, which is materially easier to obtain — or to prove — from identifiable ones. 42Hz does not yet credit its own author in `KAboutData` or in AppStream `<developer>` data; both belong with the attribution work in milestone 6.
+
 Generally useful backend-decoupling fixes may be offered upstream, but they are not a prerequisite for progress.
 
 ### Upstream working copy

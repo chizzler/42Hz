@@ -280,5 +280,6 @@ code to fix.
 - Device churn — the headset was never unplugged mid-run.
 - A genuine Omarchy speaker-tuning profile, as opposed to a representative
   stand-in.
-- The `VENDOR` placeholder, which must be settled before anything is packaged
-  or installed.
+- 42Hz's own authorship: `KAboutData` still credits only Wellington Wallace, and
+  the AppStream stub carries no `<developer>` element. Both belong with the
+  attribution work in milestone 6.
