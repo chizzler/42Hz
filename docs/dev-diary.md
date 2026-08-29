@@ -24,7 +24,7 @@ happens — this remains the account of record. Detailed evidence lives in
 
 ## 2026-08-30 (evening) — The application mixer
 
-**Commit:** `PENDING`
+**Commit:** `609bac7`
 
 Milestone 3's core: `s` reveals a list of live playback streams with volume,
 mute, and processing inclusion, driven entirely from the keyboard.
