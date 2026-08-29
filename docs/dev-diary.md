@@ -24,7 +24,7 @@ happens — this remains the account of record. Detailed evidence lives in
 
 ## 2026-08-30 — Picking a layout by looking at it
 
-**Commit:** `PENDING`
+**Commit:** `993e96a`
 
 The last session ended with a question it could not answer on paper: the product
 goal said "ultra minimal", the layout section said "responds to available
