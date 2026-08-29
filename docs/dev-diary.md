@@ -24,7 +24,7 @@ happens — this remains the account of record. Detailed evidence lives in
 
 ## 2026-08-30 (later) — Saying something when there is nothing to show
 
-**Commit:** `PENDING`
+**Commit:** `5af3a57`
 
 With no audio the window rendered nothing at all, which is indistinguishable
 from a dead PipeWire, a stopped pipeline, or a crash. That is the failure
