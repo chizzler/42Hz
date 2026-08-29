@@ -30,6 +30,11 @@ qt_add_qml_module(hz_frontend
         theme.hpp
     QML_FILES
         Main.qml
+        Frame.qml
+        Spectrum.qml
+        SpectrumCells.qml
+        ShellBare.qml
+        ShellFramed.qml
 )
 
 target_link_libraries(hz_frontend PRIVATE Qt6::Core Qt6::Gui Qt6::Quick)

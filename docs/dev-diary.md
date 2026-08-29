@@ -22,6 +22,90 @@ happens — this remains the account of record. Detailed evidence lives in
 
 ---
 
+## 2026-08-30 — Picking a layout by looking at it
+
+**Commit:** `PENDING`
+
+The last session ended with a question it could not answer on paper: the product
+goal said "ultra minimal", the layout section said "responds to available
+space", and nothing decided which one milestone 2 was building. This session
+answered it by building three shells and switching between them on live audio.
+
+### The harness
+
+`Main.qml` became a variant switcher — 1/2/3 to pick a shell, space to cycle,
+`[` and `]` to change bar width by eye. Three candidates: **bare** (spectrum
+only, ever), **hover** (controls fade in on pointer, never on size), **framed**
+(a drawn border with pinned labels).
+
+Deciding this by argument was going nowhere. Deciding it by looking took an
+afternoon.
+
+### Decision: bare and framed, both permanent
+
+Framed won on presentation and bare survives as the thing framed is measured
+against, so both ship. Hover was cut: revealing controls on pointer proximity
+answers a question nobody asked, and it fought the resting state rather than
+serving it.
+
+A fourth was tried and rejected the same day — **corners**, which dropped the
+box entirely and kept only pinned labels wearing a rule as wide as their own
+text. The argument was that the window and Hyprland's own border already state
+the boundary, so drawing it again costs two line-heights of signal for nothing.
+It read as unanchored. The box earns its keep.
+
+The two goals were never in opposition, which is the other thing this settled.
+"Ultra minimal" is about how much is drawn; "responds to available space" is
+about what happens when the window changes size. Bar density is the first case
+of the second: the spectrum resamples to however many bars fit, so a wider
+window shows more signal rather than a stretched copy. That was already working
+— `Spectrum.applyPointCount()` binds `DbSpectrum.nPoints` to `width /
+barWidth` — so one of milestone 2's three remaining items was quietly done.
+
+### Two frame bugs, both from labels straddling a line
+
+The legend at the bottom of the frame was clipped by the window edge, and
+sometimes appeared with the border line drawn straight through it.
+
+**Clipped:** a label centred on its edge puts half its glyph box outside the
+border. The frame relied on its parent leaving room; 6 px was not enough, and
+the title got away with the identical geometry only because a text box has slack
+above the cap height and none below the descender. The frame now pulls its
+border in by half a label height, so a straddling label can never leave the
+item's bounds at any font size.
+
+**Line through the text:** the gaps in the border are computed from
+`TextMetrics.width`, but nothing repainted the `Canvas` when those metrics
+resolved. First paint could run with width `0`. Both metrics now request a
+repaint on `onWidthChanged`.
+
+Related, and the same root cause a third time: the content margin cleared only
+the border stroke, but the label's upper half sits *inside* the border, so the
+spectrum ran into the legend. Content now clears the whole label height.
+
+Vertical borders went to a 16 px inset against 6 px top and bottom. The
+asymmetry is deliberate — horizontal air is what makes a frame read as a frame,
+vertical air just eats signal.
+
+### Verified
+
+By screenshot, on a running Debug build, against `osaka-jade`: title on the top
+line and legend on the bottom line, both fully inside the window, both edges
+broken around their label, spectrum clear of both.
+
+### Still open
+
+`project.md` now says actions are pinned bottom right; `ShellFramed.qml` still
+draws the legend bottom left. The document records the intent, the code has not
+caught up.
+
+Next: capability and signal state reported in the centre of the window — with
+no audio the window currently renders nothing at all, which is indistinguishable
+from a crash — then keyboard navigation. `spike/` is still misnamed and the repo
+is still on `master` while the docs say `main`.
+
+---
+
 ## 2026-08-29 (evening) — Separating the design from its history
 
 **Commits:** `cefe17b`, `ca12ff7`

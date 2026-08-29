@@ -17,8 +17,8 @@ path, default-sink routing, forced termination, and a speaker-tuning filter-chai
 
 42Hz's own frontend lives in [`frontend/`](frontend) and renders the live spectrum
 on the active Omarchy theme — palette, typography and spectrum ramp all resolved
-from Omarchy state and updated without a restart when the theme changes. It is not
-yet responsive to window geometry, has no keyboard navigation, and does not report
+from Omarchy state and updated without a restart when the theme changes. Bar density
+follows window width. It has no keyboard navigation and does not yet report
 capability-specific state.
 
 ## Derivation and attribution

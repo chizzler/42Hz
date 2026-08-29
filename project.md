@@ -149,13 +149,38 @@ Hyprland owns placement and window management. 42Hz supplies a sensible initial
 size, remembers valid user geometry where appropriate, and remains fully usable
 when tiled, floated, resized, moved between monitors, or made fullscreen.
 
-The layout responds to available space rather than switching among rigid product modes. The three tiers below are a *sketch* — useful names for regions of a continuum, not breakpoints to implement:
+### Layout
+
+Two chrome modes, both permanent and switchable by the user:
+
+- **Bare:** the spectrum alone, edge to edge. Nothing else is ever drawn.
+- **Framed:** the spectrum inside a drawn border carrying pinned labels.
+
+The frame is drawn geometrically, not typed, so it does not depend on the font
+carrying box-drawing glyphs and `omarchy font set` cannot break it. Labels sit
+on the border line, which breaks around them.
+
+Within either mode the layout responds to available space rather than switching
+among product modes. Bar density is the first instance: the spectrum resamples
+to however many bars fit at a target bar width, so a wider window shows more of
+the signal instead of a stretched copy of the same picture.
+
+Pinned positions in framed mode:
+
+- **Top left:** identity and state.
+- **Bottom right:** actions and menus.
+- **Centre:** capability and signal state, when there is something to report.
+
+The tiers below are a *sketch* — useful names for regions of a continuum, not
+breakpoints to implement:
 
 - **Minimal:** spectrum, signal state, and essential processing status.
 - **Compact:** spectrum plus active application streams and concise mix controls.
 - **Expanded:** stream mixer, pipeline/effect navigation, and the selected effect editor.
 
-Clicking or invoking a keyboard action reveals the next relevant control. Escape dismisses transient controls without stopping audio. A second launch presents the existing instance.
+Clicking or invoking a keyboard action reveals the next relevant control. Escape
+dismisses transient controls without stopping audio. A second launch presents
+the existing instance.
 
 42Hz may ship optional example Hyprland rules for common arrangements, but installation never applies them automatically.
 
@@ -190,13 +215,7 @@ For the first release, the Arch package should conflict with EasyEffects so two 
 
 ## Effects and dependencies
 
-The first supported effect is an output equalizer backed by one pinned LV2 implementation. On Arch Linux this is the LSP equalizer `http://lsp-plug.in/plugins/lv2/para_equalizer_x32_lr`, supplied by `lsp-plugins-lv2`; its package is a required runtime dependency. The spectrum separately uses `comp_delay_x2_stereo` from the same package for A/V sync compensation and degrades gracefully without it.
-
-The absence of the provider is survivable: the core reports `packageInstalled` false, does not crash, and passes audio through — while emitting several hundred port warnings. **The frontend must surface the capability flag**, since nothing useful can be read out of the log.
-
-Packaging is not sufficient proof of capability. At runtime, 42Hz must discover the expected LV2 URI and successfully instantiate it before enabling the EQ editor. If EQ is unavailable, spectrum and mixing continue where possible, while the EQ action provides a precise diagnosis. Controls must never accept changes that cannot reach a live processing engine.
-
-Future effects use the same capability-driven pattern and appear only when supported and requested.
+There will be a ui to enable or disable effects on each source, atm there is only 1 effect planned - an output equalizer backed by one pinned LV2 implementation. On Arch Linux this is the LSP equalizer `http://lsp-plug.in/plugins/lv2/para_equalizer_x32_lr`, supplied by `lsp-plugins-lv2`; its package is a required runtime dependency. The spectrum separately uses `comp_delay_x2_stereo` from the same package for A/V sync compensation.
 
 ## Omarchy theme integration
 
@@ -241,22 +260,6 @@ The application should recover from PipeWire restarts and device churn without a
 
 ## Command surface
 
-*Sketch.* The shape below is provisional: it was drafted before any of it existed, and the split between what the running process owns and what a separate control binary owns is unsettled. Treat it as a statement of the interaction the command surface should support, not as a committed argument grammar.
-
-Provide a small stable command interface for keybindings, scripting, and diagnostics:
-
-```text
-42hz                         launch or present the existing instance
-42hzctl status --json       capabilities, streams, routing, and processing state
-42hzctl bypass toggle       toggle the live processing path
-42hzctl eq show             present the EQ editor
-42hzctl stream list         list active application streams
-42hzctl stream set <id> ... change supported stream state
-42hzctl theme reload        reload resolved Omarchy theme state
-42hzctl doctor              explain missing services, plugins, and graph failures
-```
-
-Commands return meaningful exit statuses and machine-readable errors. The first release may require the 42Hz process to remain running while processing is enabled; a separate daemon is not implied.
 
 ## Packaging and upstream strategy
 
