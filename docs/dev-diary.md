@@ -1,15 +1,111 @@
-# 42Hz development log
+# 42Hz dev diary
 
 Chronological record of work, decisions, and dead ends.
 
 **Convention.** Newest entry first — the common case is "what was I doing last
 time". One entry per working session, dated. Each entry carries what changed,
 what was *decided* (with the reasoning, so it can be revisited rather than
-re-litigated), and what remains open.
+re-litigated), what was verified, and what remains open. Commit hashes are
+recorded; because a commit cannot contain its own hash, entries are backfilled
+in a follow-up commit.
 
-This log records **what happened**. `project.md` records **what is true** about
-the design. Findings graduate from here into `project.md` once they are durable;
-status and narrative stay here. Detailed evidence lives in `docs/spike-*.md`.
+**This diary records what happened.** [`../project.md`](../project.md) records
+what is *true* about the design — commitments, constraints and requirements, in
+the present tense, with no dates and no progress. Everything narrative belongs
+here: how a thing was found, what it cost, what was tried and rejected, what is
+verified and what merely looks verified, and what is still open.
+
+Findings graduate from here into `project.md` once they are durable, and are
+stripped of their narrative on the way. Nothing is deleted here when that
+happens — this remains the account of record. Detailed evidence lives in
+`docs/spike-*.md`.
+
+---
+
+## 2026-08-29 (evening) — Separating the design from its history
+
+**Commit:** *(backfill)*
+
+No code. `project.md` had accumulated four sessions of narrative — verification
+notes, decision rationale, per-milestone progress — and had stopped being
+readable as a statement of the design. This session separated the two documents
+properly and gave this one the name it should have had.
+
+### Decision: this file is the dev diary, and there is only one of it
+
+Renamed `docs/devlog.md` → `docs/dev-diary.md`. The rename is the whole point:
+the file existed, was well maintained, and was not being reached for, because
+"devlog" reads like build output rather than a document you consult. A second
+chronological file was considered and rejected outright — two places to record
+"what happened" is the ambiguity, not the fix.
+
+The division is now stated from both sides, in both files:
+
+| | |
+|---|---|
+| `project.md` | what is **true**: commitments, constraints, requirements. Present tense, no dates, no progress. |
+| `docs/dev-diary.md` | what **happened**: dated, narrative, decisions with reasoning, verification, open threads. |
+| `docs/spike-*.md` | the evidence a claim rests on. |
+
+### What actually moved
+
+Almost nothing, which was the surprise. Auditing `project.md`'s narrative
+against this diary, nearly every piece of it was **already recorded here, in
+more detail** — the `str_to_num` digit bug, the `QT_NO_DEBUG_OUTPUT` silence,
+the theme-watcher swap, the `omarchy-audio-output-sink` gap, the QML module
+finalization trap. `project.md` had been carrying summaries of diary entries and
+presenting them as design.
+
+So the operation was mostly deletion, not migration. `project.md` lost its
+verification narrative, its status tracking, and its decision rationale, and
+kept the rules those things produced. Two examples of the compression:
+
+- *Was:* a paragraph on how identity reassignment was verified unfenced after a forced settings write. *Now:* "42Hz reads none of EasyEffects' settings and runs alongside it without collision, so development runs need no `XDG_CONFIG_HOME` fence."
+- *Was:* the story of the `42hz_sink` enumeration bug and its control against stock EasyEffects. *Now:* "A node name may not begin with a digit", with the mechanism and the generalisation, under a heading for constraints on the base.
+
+Milestone entries lost their "Done: … Remaining: …" tails entirely. Those were
+the clearest case of the wrong document: a milestone definition is a commitment,
+its completion state is a fact about last Tuesday.
+
+### The two details that only existed in project.md
+
+Both are carried across here rather than lost:
+
+**The KConfig rename was 38 file paths, not one.** The 2026-08-28 entry lists
+"KConfig database path" as one of sixteen identity surfaces, which undercounts
+the work considerably. The `kcfgc`-generated settings classes each carry their
+own `<kcfgfile name="...">`, and *those* are what decide where settings land —
+reassigning the directory without them would have produced an application that
+looked renamed and still wrote to upstream's files.
+
+**Verifying "no write occurred" is meaningless unless a write is provoked
+first.** This is the "took two attempts" the 2026-08-28 entry promised to
+explain and then didn't. The first isolation check confirmed
+`~/.config/easyeffects` was untouched after a run — which proved nothing,
+because KConfig only persists on change, so an idle run writes nothing no matter
+whose identity it is using. The check only became evidence once a settings write
+was forced first. Generalises past KConfig: **a negative result from a system
+that no-ops by default is not a negative result.**
+
+### Still open
+
+Unchanged by this session, and inherited: `spike/` is still misnamed — those two
+files are the build system, not a spike — and the repo is still on `master`
+while both documents say `main`. Light themes resolve correctly but have never
+been looked at.
+
+Next real work is milestone 2's remaining three: layout that responds to
+geometry, keyboard navigation, and capability-specific empty states. The
+spectrum's `nPoints` is a writable QML singleton property (`DbSpectrum`,
+range 2-2048), so binding bar count to window width is a binding rather than
+DSP work — `project.md`'s claim on that point checks out against the generated
+header.
+
+One thing to settle before writing layout code: the product goal was edited this
+session to "ultra minimal UI allowing the user control on placement", dropping
+the progressive-disclosure sentence, while the Minimal/Compact/Expanded tiers
+further down still describe the richer reading. Milestone 2 is the work that has
+to pick one.
 
 ---
 
@@ -368,7 +464,8 @@ Same build figures as spike 02 — 209/209 targets, 13M, 123 libraries, five KF6
 - **Config isolation, unfenced.** Settings land in `~/.config/42hz/db/42hzrc`;
   `~/.config/easyeffects` unchanged across a *forced* write. `XDG_CONFIG_HOME`
   fencing is no longer required, which was the whole point. This took two
-  attempts — see below.
+  attempts; why, is recorded in the 2026-08-29 (evening) entry, which is where
+  the explanation promised here finally landed.
 - **Real application streams.** `mpv`, `ffplay` and `paplay` concurrently, all
   enumerated, none ignored, full chain confirmed to the physical device.
 - **EQ LV2 URI validated both ways.** `para_equalizer_x32_lr` instantiates and

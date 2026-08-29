@@ -8,7 +8,7 @@ hosting, and replaces its Kirigami frontend with a responsive, spectrum-first
 QML interface that tracks the active Omarchy theme.
 
 See [`project.md`](project.md) for design goals and milestones, and
-[`docs/devlog.md`](docs/devlog.md) for the running development log.
+[`docs/dev-diary.md`](docs/dev-diary.md) for the running development diary.
 
 **Status:** milestone 1 complete; milestone 2 in progress. The EasyEffects-derived
 core builds and runs under its own identity against the pinned upstream base, and

@@ -5,7 +5,7 @@
 - **Public name:** 42Hz
 - **Executable:** `42hz`
 - **Working directory:** `~/Work/42Hz/`
-- **Status:** milestone 1 complete; milestone 2 in progress. The derived core builds, runs under its own identity, and has been verified against real application streams, the EQ LV2 provider, default-sink routing, forced termination, and a speaker-tuning filter-chain. 42Hz's own frontend now exists in `frontend/`: a themed Wayland window rendering the live spectrum on the active Omarchy palette, typography and spectrum ramp, tracking theme changes without restart. It is not yet responsive to geometry, has no keyboard navigation, and reports no capability-specific state. Current state is tracked in `docs/devlog.md`, not here.
+- **Status:** milestone 1 complete; milestone 2 in progress. Progress, verification and open threads are tracked in [`docs/dev-diary.md`](docs/dev-diary.md), not here.
 
 ### How to read this document
 
@@ -17,8 +17,18 @@ milestones, and the non-goals.
 **Sketches** are provisional and expected to change. They are marked where they
 appear. A sketch is a record of current intent, not a hard specification.
 
-Findings graduate into this document from `docs/devlog.md` once durable.
-Evidence lives in `docs/spike-*.md`.
+**This document records what is *true* about the design** — commitments,
+constraints, and requirements, in the present tense. It carries no dates, no
+progress, and no account of how anything was discovered.
+
+That account lives in [`docs/dev-diary.md`](docs/dev-diary.md): chronological,
+newest first, one entry per working session, recording what changed, what was
+decided and why, what was verified, and what remains open. Detailed evidence
+lives in `docs/spike-*.md`.
+
+Findings graduate from the diary into this document once durable, and arrive
+stripped of their narrative. If you want to know *why* a constraint here exists
+or *when* it was established, search the diary for it.
 
 ## Product goal
 
@@ -98,23 +108,46 @@ One process and one package are preferred until measured reliability or multiple
 
 ### Upstream baseline
 
-The derivation rests on the following properties of EasyEffects `v8.2.8`, verified by build:
+The derivation rests on the following properties of EasyEffects `v8.2.8`:
 
 - Upstream is already a Qt6/QML application. The derivation is a frontend replacement within one toolkit, not a port.
 - KDE/Kirigami coupling is confined to the application entry point and the KDE colour-scheme adapter. The PipeWire, DSP, routing, preset, and state layers carry no KDE UI dependency and require no modification.
-- The spectrum is already exposed to QML as a pull-based singleton API delivering points pre-resampled to a configurable point count. Responsive resampling is therefore a settings binding, not new DSP code.
+- The spectrum is exposed to QML as a pull-based singleton API delivering points pre-resampled to a configurable point count. Responsive resampling is therefore a settings binding, not new DSP code.
 - No upstream QML is reusable. 42Hz supplies its entire frontend, which dominates the effort in milestones 2-4.
-- Spectrum delivery to a plain-QtQuick frontend is verified by execution, not only by inspection: a live signal renders through the derived core with no Kirigami, QtGraphs, or KDE style present (`docs/spike-02-first-run.md`).
-- A release build reports nothing. Upstream includes KDE's `KDECompilerSettings`, which defines `QT_NO_DEBUG_OUTPUT` for Release, so `console.log` and QML's own diagnostics are compiled out — and QML resolves undefined identifiers at runtime, not at build time. A Release build therefore fails silently by construction, and cannot be verified from its own logs. Diagnose in a Debug build, or observe the running process from outside it.
-- Identity reassignment is safe against the core, but the *shape* of a new name is not free. The core resolves a client's `target.object` by attempting a numeric parse first, and its `str_to_num` helper accepts a partial `std::from_chars` result — so a node name beginning with digits is misread as a serial and the stream is silently dropped from the model while remaining audible. `42hz_sink` triggered this; `easyeffects_sink` never could. Fixed in the patch inventory, and confirmed by control against stock EasyEffects (`docs/spike-03-identity.md`).
+- Spectrum delivery reaches a plain-QtQuick frontend with no Kirigami, QtGraphs, or KDE style present.
 
-Measured coupling, the patch inventory, and build verification are recorded in `docs/spike-01-frontend-coupling.md`. First execution of the derived core — live spectrum delivery, graph topology, routing behaviour, and teardown — is recorded in `docs/spike-02-first-run.md`.
+Two properties of the base constrain how work on it is done, and both are easy
+to rediscover the expensive way:
+
+- **A Release build cannot be verified from its own logs.** Upstream includes KDE's `KDECompilerSettings`, which defines `QT_NO_DEBUG_OUTPUT` for Release, so `console.log` and QML's own diagnostics are compiled out; QML also resolves undefined identifiers at runtime rather than at build time. A Release build therefore fails silently by construction. Diagnose in a Debug build, or observe the running process from outside it. An empty log means *muted*, never *clean*.
+- **A node name may not begin with a digit.** The core resolves a client's `target.object` by attempting a numeric parse first, and its `str_to_num` helper accepts a partial `std::from_chars` result, so a leading-digit name is misread as a serial and the stream is silently dropped from the model while remaining audible. Handled in the patch inventory for `target.object`; the shared helper is deliberately left lenient. More generally, a rename is not cosmetic when the new name has a different *shape* — leading digits, length, character class — from the old one.
+
+Measured coupling and the patch inventory are recorded in `docs/spike-01-frontend-coupling.md`; first execution of the derived core in `docs/spike-02-first-run.md`; identity reassignment in `docs/spike-03-identity.md`.
 
 42Hz is a derived application, not a remote control for an installed EasyEffects executable. A release build contains the EasyEffects-derived core it was tested against; EasyEffects does not need to be installed or running.
 
 ## Window and interaction behavior
 
-42Hz uses a conventional Wayland toplevel with a stable application ID. Identity has been reassigned across every surface the derived core inherited — application ID, executable, config directory *and the 38 KConfig file paths that actually decide where settings land*, presets directory, single-instance lock and socket, logging category, virtual node names, filter node prefix, node groups, media classes, desktop entry, metainfo, icons, and portal token — and is now driven by constants at the top of `spike/reduce-deps.py`. Development runs no longer need to isolate `XDG_CONFIG_HOME`, verified unfenced after a *forced* settings write; verifying that no write occurred is meaningless unless a write is provoked first, since KConfig only persists on change. The application ID is `io.github.chizzler.42Hz`, which is also the Wayland class any Hyprland window rule matches on. `io.omarchy.*` was rejected because the README disclaims Omarchy affiliation and a reverse-DNS ID should name a domain its author controls. Its final component begins with a digit, which desktop entries, AppStream and Wayland `app_id` all permit but Flatpak application IDs and D-Bus bus names do not; neither constrains 42Hz, which registers no D-Bus name and targets an Arch package, but a Flatpak would need a different ID. Hyprland owns placement and window management. 42Hz supplies a sensible initial size, remembers valid user geometry where appropriate, and remains fully usable when tiled, floated, resized, moved between monitors, or made fullscreen.
+42Hz uses a conventional Wayland toplevel with a stable application ID.
+
+**The application ID is `io.github.chizzler.42Hz`**, which is also the Wayland
+class any Hyprland window rule matches on. Every identity surface the derived
+core inherited — executable, config directory and the KConfig file paths that
+decide where settings land, presets directory, single-instance lock and socket,
+logging category, virtual node names, filter node prefix, node groups, media
+classes, desktop entry, metainfo, icons, and portal token — is reassigned, and
+all of it derives from constants at the top of `spike/reduce-deps.py`. 42Hz
+reads none of EasyEffects' settings and runs alongside it without collision, so
+development runs need no `XDG_CONFIG_HOME` fence.
+
+The ID's final component begins with a digit. Desktop entries, AppStream and
+Wayland `app_id` all permit this; Flatpak application IDs and D-Bus bus names do
+not. Neither binds 42Hz, which registers no D-Bus name and targets an Arch
+package, but a Flatpak would need a different ID.
+
+Hyprland owns placement and window management. 42Hz supplies a sensible initial
+size, remembers valid user geometry where appropriate, and remains fully usable
+when tiled, floated, resized, moved between monitors, or made fullscreen.
 
 The layout responds to available space rather than switching among rigid product modes. The three tiers below are a *sketch* — useful names for regions of a continuum, not breakpoints to implement:
 
@@ -141,7 +174,7 @@ Preserve EasyEffects semantics rather than reducing audio to a single ambiguous 
 - change routing only after the replacement processing path is confirmed live;
 - fall back to a valid physical endpoint if the graph fails or disappears.
 
-42Hz chains cleanly in front of a speaker-tuning filter-chain sink, verified in spike 03 against a representative stand-in. One hazard is inherited: a filter-chain sink whose playback stream pins no target follows the default sink, so making a DSP virtual sink the default closes a feedback loop through it. Stock EasyEffects behaves identically, but 42Hz should detect a cycle through its own sink rather than link it — hence the constraint above.
+42Hz chains in front of a speaker-tuning filter-chain sink. One hazard is inherited: a filter-chain sink whose playback stream pins no target follows the default sink, so making a DSP virtual sink the default closes a feedback loop through it. Stock EasyEffects behaves identically, but 42Hz must detect a cycle through its own sink rather than link it — hence the constraint above.
 
 Omarchy's speaker tuning is a **native PipeWire filter-chain**, not an EasyEffects preset. `/usr/share/omarchy/default/audio/tunings/` ships `filter-chain.conf` files fitted by measurement from an EasyEffects profile, redistributing no upstream asset. Conflicting with the EasyEffects package therefore costs Omarchy's tuning nothing. The coexistence problem is 42Hz chained behind a filter-chain sink — an ordering and endpoint-resolution question — not 42Hz versus EasyEffects.
 
@@ -149,15 +182,17 @@ Omarchy's speaker tuning is a **native PipeWire filter-chain**, not an EasyEffec
 
 Omarchy resolves a selected DSP sink to the physical sink whose volume it really controls, so that volume keys, the output switcher, and the shell audio panel act on the endpoint rather than on the level going *into* processing. `/usr/bin/omarchy-audio-output-sink` implements this by walking `pactl list sink-inputs`.
 
-**That walk cannot see the EasyEffects-derived output leg.** Measured in spike 02: the node feeding the physical device is `ee_soe_output_level`, a PipeWire filter node carrying no `media.class`, linked port to port. It is never enumerated as a sink-input, so the resolver falls through and returns the DSP sink itself.
+**That walk cannot see the EasyEffects-derived output leg.** The node feeding the physical device is a PipeWire filter node carrying no `media.class`, linked port to port. It is never enumerated as a sink-input, so the resolver falls through and returns the DSP sink itself.
 
-This is a resolver limitation, not an identity-negotiation problem, and no choice of node naming avoids it. 42Hz must resolve it one of three ways — presenting a real sink-input for the output leg (a core modification), extending the resolver to walk PipeWire links rather than PulseAudio sink-inputs (an upstream Omarchy contribution that also fixes EasyEffects and tuning chains), or accepting the fallback and its consequences. The second is preferred. Evidence and trade-offs are in `docs/spike-02-first-run.md`.
+This is a resolver limitation, not an identity-negotiation problem, and **no choice of node naming avoids it.** 42Hz must resolve it one of three ways — presenting a real sink-input for the output leg (a core modification), extending the resolver to walk PipeWire links rather than PulseAudio sink-inputs (an upstream Omarchy contribution that also fixes EasyEffects and tuning chains), or accepting the fallback and its consequences. The second is preferred. Evidence and trade-offs are in `docs/spike-02-first-run.md`.
 
 For the first release, the Arch package should conflict with EasyEffects so two processors do not compete for the same streams and virtual-device role. Safe coexistence can be considered later only after application IDs, PipeWire nodes, settings, presets, autostart, and routing ownership are isolated and tested.
 
 ## Effects and dependencies
 
-The first supported effect is an output equalizer backed by one pinned LV2 implementation. On Arch Linux this is the LSP equalizer `http://lsp-plug.in/plugins/lv2/para_equalizer_x32_lr`, supplied by `lsp-plugins-lv2`; its package is a required runtime dependency. The URI is verified to instantiate, and its absence is verified to be survivable: the core reports `packageInstalled` false, does not crash, and passes audio through — while emitting several hundred port warnings, so the frontend must surface the capability flag rather than rely on logs. The spectrum separately uses `comp_delay_x2_stereo` from the same package for A/V sync compensation and degrades gracefully without it.
+The first supported effect is an output equalizer backed by one pinned LV2 implementation. On Arch Linux this is the LSP equalizer `http://lsp-plug.in/plugins/lv2/para_equalizer_x32_lr`, supplied by `lsp-plugins-lv2`; its package is a required runtime dependency. The spectrum separately uses `comp_delay_x2_stereo` from the same package for A/V sync compensation and degrades gracefully without it.
+
+The absence of the provider is survivable: the core reports `packageInstalled` false, does not crash, and passes audio through — while emitting several hundred port warnings. **The frontend must surface the capability flag**, since nothing useful can be read out of the log.
 
 Packaging is not sufficient proof of capability. At runtime, 42Hz must discover the expected LV2 URI and successfully instantiate it before enabling the EQ editor. If EQ is unavailable, spectrum and mixing continue where possible, while the EQ action provides a precise diagnosis. Controls must never accept changes that cannot reach a live processing engine.
 
@@ -171,7 +206,7 @@ Future effects use the same capability-driven pattern and appear only when suppo
 - Layer `~/.config/omarchy/shell.toml` on top of both. It is a machine-level override that survives theme switches and is where `omarchy display text size` writes `[font] base-size`, so its keys must win over the theme's.
 - Map the complete usable palette into semantic UI tokens, including background levels, foreground levels, muted state, accent, selection, warning, error, and spectrum colors.
 - Follow the active Omarchy font and text scaling where exposed.
-- Watch the atomically replaced current-theme state and apply changes live without restarting the application or audio graph. **Watch the parent directory, not the theme directory or its files.** `omarchy-theme-set` performs `rm -rf current/theme` followed by `mv next-theme current/theme`, so a watch on `theme/` or on `colors.toml` is dropped by the swap and never recovers even though a file reappears at the same path moments later. `~/.local/state/omarchy/current/` outlives the swap and is the only durable signal. Re-establish the finer-grained watches after every load, and coalesce: one switch produces a burst of events.
+- Watch the atomically replaced current-theme state and apply changes live without restarting the application or audio graph. **Watch the parent directory, not the theme directory or its files.** `omarchy-theme-set` replaces `current/theme` by removal and rename, so a watch on `theme/` or on `colors.toml` is dropped by the swap and never recovers, even though a file reappears at the same path moments later. `~/.local/state/omarchy/current/` outlives the swap and is the only durable signal. Re-establish the finer-grained watches after every load, and coalesce: one switch produces a burst of events.
 - Use theme and font hooks only as optional low-latency notifications; file/state monitoring remains the reliable path. Omarchy's own shell is notified through Quickshell IPC, which 42Hz cannot receive, so this is not a preference but the only available route.
 - Follow the font family Omarchy manages system-wide, which is the fontconfig alias `monospace` rather than a concrete family. Naming a resolved family defeats `omarchy font set`.
 - Derive contrast-safe fallbacks when a theme omits a value or produces an illegible pairing.
@@ -202,9 +237,7 @@ Startup proceeds in stages:
 6. Reconcile streams and endpoints through the Omarchy-aware routing policy.
 7. Start spectrum delivery and expose only controls backed by live capabilities.
 
-The application should recover from PipeWire restarts and device churn without a UI restart. It must never leave the default route pointing at a dead 42Hz node. Tests must cover forced termination as well as graceful shutdown.
-
-Partially verified in spike 02: under both `SIGTERM` and `SIGKILL`, PipeWire reaped the virtual nodes and the default sink was unchanged. That run never made the virtual sink the default, so it did not exercise the case the requirement exists for — killing the process while the default route points *at* it. That case remains untested and is the one that matters.
+The application should recover from PipeWire restarts and device churn without a UI restart. It must never leave the default route pointing at a dead 42Hz node. Tests must cover forced termination as well as graceful shutdown, and specifically the case the requirement exists for: killing the process while the default route points *at* a 42Hz node.
 
 ## Command surface
 
@@ -240,7 +273,9 @@ Ship one reproducible Arch package containing the application, desktop entry, sy
 - avoid implying official affiliation with EasyEffects or Omarchy;
 - track and integrate upstream changes at planned intervals.
 
-Contributions are authored under a real name with a dedicated public contact address, matching the convention of the GPL/system-tooling projects 42Hz sits among and of EasyEffects itself. This is not ceremony: the licensing decision recorded for 2026-08-26 turns on relicensing requiring agreement from every contributor, which is materially easier to obtain — or to prove — from identifiable ones. 42Hz does not yet credit its own author in `KAboutData` or in AppStream `<developer>` data; both belong with the attribution work in milestone 6.
+Contributions are authored under a real name with a dedicated public contact address, matching the convention of the GPL/system-tooling projects 42Hz sits among and of EasyEffects itself. This is not ceremony: relicensing requires agreement from every contributor, which is materially easier to obtain — or to prove — from identifiable ones.
+
+Upstream's copyright notice is **extended, never replaced**. Dropping it from a GPL derivative would be a licence violation, and labels that describe genuinely upstream work — the plugin vendor string, for instance — keep naming upstream rather than 42Hz.
 
 Generally useful backend-decoupling fixes may be offered upstream, but they are not a prerequisite for progress.
 
@@ -256,12 +291,14 @@ clean checkout reaches a built binary in four commands.
 disposable tree — the file you edit is the file that compiles. Its QML is a
 **separate Qt module** (`hz.ui`) linked into the core's target as a plugin,
 rather than files added to the core's own module (`ee.ui`, which after patching
-registers C++ types and ships no QML). That separation is forced by Qt, which
-finalizes a QML module at the end of the directory scope that declared it: QML
-contributed from `frontend/` to the core's module is embedded in the binary but
-never reaches its `qmldir`, producing a clean build that fails at load. The
-split is also useful — every `import ee.ui` in 42Hz QML is a direct reach into
-upstream, and greppable as such.
+registers C++ types and ships no QML).
+
+That separation is forced by Qt, which finalizes a QML module at the end of the
+directory scope that declared it: QML contributed from `frontend/` to the core's
+module is embedded in the binary but never reaches its `qmldir`, producing a
+clean build that fails at load. The split is also useful — every `import ee.ui`
+in 42Hz QML is a direct reach across the facade boundary, and greppable as
+such.
 
 The base is pinned three ways: the upstream commit, a checksum of the downloaded
 archive, and a checksum of the extracted file tree. The last of these exists
@@ -292,13 +329,14 @@ Consequently:
 
 ## Milestones
 
-1. **Repository and feasibility spike** — **complete (2026-08-28)**  
-   Pin the EasyEffects base, preserve licensing, map frontend/backend coupling, and prove access to live spectrum frames, application streams, PipeWire endpoints, and compatible Omarchy routing behavior. Build a 42Hz executable that owns its derived core and runs without the EasyEffects application installed. Validate the selected EQ LV2 URI and failure path.
-   Identity reassignment was folded in from milestone 2, since first execution showed it gated safe development runs. Not covered here and deferred to their own milestones: per-stream volume, mute and processing-inclusion *control* (milestone 3), device churn, and a genuine Omarchy tuning profile as opposed to a stand-in.
+These are the definitions of done. Which parts are actually done, and what each
+one cost, is recorded in [`docs/dev-diary.md`](docs/dev-diary.md).
 
-2. **Responsive spectrum shell** — *in progress*  
-   Build a normal themed Wayland window whose spectrum and essential state remain useful across representative tiled, floating, narrow, wide, and fullscreen geometries. Establish stable application identity, single-instance presentation, keyboard navigation, and capability-specific empty states.
-   Done: 42Hz's source now lives in `frontend/` outside the disposable tree, built as its own QML module; the Omarchy theme adapter resolves the live palette, typography and control-state tokens from all three source files and survives the destructive theme swap. Stable identity and single-instance presentation were inherited from milestone 1 and the derived core respectively, and are verified. Remaining: layout that responds to geometry, keyboard navigation, and capability-specific empty states — none of which exist yet.
+1. **Repository and feasibility spike**  
+   Pin the EasyEffects base, preserve licensing, map frontend/backend coupling, and prove access to live spectrum frames, application streams, PipeWire endpoints, and compatible Omarchy routing behavior. Build a 42Hz executable that owns its derived core and runs without the EasyEffects application installed. Validate the selected EQ LV2 URI and failure path. Reassign application identity across every surface the derived core inherited.
+
+2. **Responsive spectrum shell**  
+   Build a normal themed Wayland window whose spectrum and essential state remain useful across representative tiled, floating, narrow, wide, and fullscreen geometries. Establish stable application identity, single-instance presentation, keyboard navigation, and capability-specific empty states. Adapt continuously to the active Omarchy theme.
 
 3. **Application mixer**  
    Expose live playback streams with supported volume, mute, and processing-inclusion controls. Verify game, voice-chat, browser, and music streams; device churn; speaker tuning; virtual sinks; and safe recovery after graph failure.
