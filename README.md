@@ -42,7 +42,9 @@ collision.
 
 Modifications against the upstream base are applied by
 [`spike/reduce-deps.py`](spike/reduce-deps.py), which is the complete patch
-inventory. Dependency reduction is recorded in
+inventory. It contains no 42Hz frontend source: 42Hz's QML is its own Qt module
+(`hz.ui`) built from `frontend/` and linked into the derived core's target, so
+the patch inventory stays a record of what was changed in upstream's tree. Dependency reduction is recorded in
 [`docs/spike-01-frontend-coupling.md`](docs/spike-01-frontend-coupling.md),
 first execution in
 [`docs/spike-02-first-run.md`](docs/spike-02-first-run.md), and identity
@@ -56,18 +58,18 @@ Upstream source is fetched and verified, never tracked:
 ```sh
 ./spike/fetch.sh
 ./spike/reduce-deps.py upstream/easyeffects-8.2.8
-cmake -B upstream/easyeffects-8.2.8/build -S upstream/easyeffects-8.2.8 \
-      -G Ninja -DCMAKE_BUILD_TYPE=Release
-ninja -C upstream/easyeffects-8.2.8/build
+cmake -B build -S . -G Ninja -DCMAKE_BUILD_TYPE=Release
+ninja -C build
 ```
 
-The binary is `upstream/easyeffects-8.2.8/build/src/42hz`, and it installs under
-the application ID `io.github.chizzler.42Hz`.
+The binary is `build/42hz`, and it installs under the application ID
+`io.github.chizzler.42Hz`.
 
-`upstream/` is disposable — re-running `fetch.sh` replaces it wholesale,
-build directory included. Never hand-edit it; changes to the derived core
-belong in `spike/reduce-deps.py`. See *Upstream working copy* in
-[`project.md`](project.md).
+The build root is this repository. `upstream/` holds the patched derived core
+and is disposable — re-running `fetch.sh` replaces it wholesale. Never
+hand-edit it; changes to the derived core belong in `spike/reduce-deps.py`.
+42Hz's own source lives in `frontend/` and is tracked here. See *Upstream
+working copy* in [`project.md`](project.md).
 
 Requires Qt 6, KF6 (Config, CoreAddons, I18n), CMake, and Ninja.
 

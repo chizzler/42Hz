@@ -4,9 +4,8 @@
 #
 #     ./spike/fetch.sh
 #     ./spike/reduce-deps.py upstream/easyeffects-8.2.8
-#     cmake -B upstream/easyeffects-8.2.8/build -S upstream/easyeffects-8.2.8 \
-#           -G Ninja -DCMAKE_BUILD_TYPE=Release
-#     ninja -C upstream/easyeffects-8.2.8/build
+#     cmake -B build -S . -G Ninja -DCMAKE_BUILD_TYPE=Release
+#     ninja -C build
 #
 # 42Hz is a patch-on-tarball derivative: upstream source is fetched, never
 # tracked, so that `spike/reduce-deps.py` remains legible as the entire set of

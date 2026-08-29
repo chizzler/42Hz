@@ -234,8 +234,20 @@ Generally useful backend-decoupling fixes may be offered upstream, but they are 
 
 The repository does not vendor EasyEffects source. `spike/fetch.sh` fetches and
 verifies the pinned base into `upstream/`; `spike/reduce-deps.py` applies the
-complete patch inventory to it. A clean checkout reaches a built binary in three
-commands and needs nothing tracked but the patch script.
+complete patch inventory to it. The build root is the repository itself: the
+top-level `CMakeLists.txt` adds the patched core and then `frontend/`, so a
+clean checkout reaches a built binary in four commands.
+
+42Hz's own source is tracked in `frontend/` and is never copied into the
+disposable tree — the file you edit is the file that compiles. Its QML is a
+**separate Qt module** (`hz.ui`) linked into the core's target as a plugin,
+rather than files added to the core's own module (`ee.ui`, which after patching
+registers C++ types and ships no QML). That separation is forced by Qt, which
+finalizes a QML module at the end of the directory scope that declared it: QML
+contributed from `frontend/` to the core's module is embedded in the binary but
+never reaches its `qmldir`, producing a clean build that fails at load. The
+split is also useful — every `import ee.ui` in 42Hz QML is a direct reach into
+upstream, and greppable as such.
 
 The base is pinned three ways: the upstream commit, a checksum of the downloaded
 archive, and a checksum of the extracted file tree. The last of these exists

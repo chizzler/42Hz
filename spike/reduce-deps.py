@@ -104,13 +104,31 @@ def top_deps(s):
     s = re.sub(r"^ecm_find_qmlmodule\(org\.kde\.kirigami REQUIRED\)\s*$\n", "", s, flags=re.M)
     return s
 
-# ---- src/CMakeLists: replace QML_FILES list, drop kcolor_manager + KDE UI links ----
+# ---- src/CMakeLists: drop QML_FILES, kcolor_manager, and the KDE UI links ----
+#
+# The core's qt_add_qml_module keeps its upstream URI (ee.ui) and registers only
+# C++ types; it ships no QML at all. 42Hz's QML is a SEPARATE module (hz.ui)
+# declared in frontend/CMakeLists.txt and linked in as a plugin.
+#
+# That split is forced, not stylistic. Qt finalizes a QML module at the end of
+# the directory scope that declared it, so a qt_target_qml_sources() call from
+# frontend/ embeds the file in the binary but never reaches this module's
+# qmldir. The result builds and links cleanly and then fails at load with
+# "Failed to load QML UI" -- verified, 2026-08-29.
 def src_deps(s):
     lines = s.split("\n")
     start = next(i for i, l in enumerate(lines) if l.strip() == "QML_FILES")
     end   = next(i for i, l in enumerate(lines) if i > start and l.startswith(")"))
-    lines[start:end] = ["    QML_FILES", "        contents/ui/Main.qml"]
+    del lines[start:end]
     s = "\n".join(lines)
+    # These name QML singletons this script deletes; leaving them is dead weight.
+    s = sub(s, """set_source_files_properties(
+    contents/ui/Common.qml
+    contents/ui/EeMetersReset.qml
+    contents/ui/Validators.qml
+    PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
+
+""", "")
     s = re.sub(r"^\s*kcolor_manager\.cpp\s*$\n", "", s, flags=re.M)
     for lib in ["KF6::ColorScheme", "KF6::IconThemes", "Qt::Graphs"]:
         s = re.sub(rf"^\s*{re.escape(lib)}\s*$\n", "", s, flags=re.M)
@@ -131,6 +149,11 @@ def main_deps(s):
     # drop breeze style + kde desktop QQC2 style blocks
     s = re.sub(r"\n  if \(DbMain::forceBreezeTheme\(\)\) \{\n.*?\n  \}\n", "\n", s, flags=re.S)
     s = re.sub(r"\n  if \(qEnvironmentVariableIsEmpty\(\"QT_QUICK_CONTROLS_STYLE\"\)\) \{\n.*?\n  \}\n", "\n", s, flags=re.S)
+    # Load Main from the 42Hz frontend module instead of upstream's ee.ui.
+    # The literal below gates window->show(); a stale value leaves the process
+    # running with no window and no error.
+    s = sub(s, '"qrc:/qt/qml/ee/ui/contents/ui/Main.qml"', '"qrc:/qt/qml/hz/ui/Main.qml"')
+    s = sub(s, 'engine.loadFromModule("ee.ui", "Main")', 'engine.loadFromModule("hz.ui", "Main")')
     return s
 
 
@@ -472,80 +495,20 @@ print(f"  renamed 4 icons -> {APP_ID}*.svg  (artwork still upstream's; milestone
 ''')
 print(f"  replaced metainfo -> {APP_ID}.metainfo.xml.in (stub; upstream release notes dropped)")
 
-# ---- minimal plain-QtQuick frontend ----
+# ---- delete upstream's Kirigami QML ----
+#
+# 42Hz's own QML is NOT written here: it lives in frontend/, tracked in this
+# repository, and is added to the build by the top-level CMakeLists. Keeping
+# frontend source out of the patch inventory is the point -- this script stays
+# a record of what was changed in someone else's tree, and 42Hz's code stays
+# editable in place rather than being copied into a disposable directory.
 ui = root / "src/contents/ui"
+n_qml = len(list(ui.glob("*.qml")))
 for q in ui.glob("*.qml"):
     q.unlink()
-(ui / "Main.qml").write_text('''import QtQuick
-import QtQuick.Window
-import ee.ui
-
-Window {
-    id: root
-    // supplied via engine.setInitialProperties() in main.cpp
-    property string applicationName: "''' + APP_NAME + '''"
-    property string applicationId: "''' + APP_ID + '''"
-    property bool canUseSysTray: false
-
-    width: 480; height: 200
-    visible: true
-    title: root.applicationName
-    color: "#111c18"                       // Omarchy: theme background
-
-    property var points: []
-
-    Connections {
-        target: StreamOutputEffects
-        function onNewSpectrumData(newData) {
-            root.points = newData
-            canvas.requestPaint()
-        }
-    }
-
-    Timer {
-        interval: 1000 / 60; running: true; repeat: true
-        onTriggered: StreamOutputEffects.requestSpectrumData()
-    }
-
-    Canvas {
-        id: canvas
-        anchors.fill: parent
-        anchors.margins: 8
-        onPaint: {
-            const ctx = getContext("2d")
-            ctx.reset()
-            const pts = root.points
-            const n = pts.length
-            if (n === 0) return
-
-            let lo = Infinity, hi = -Infinity
-            for (let i = 0; i < n; i++) {
-                const v = pts[i].y
-                if (v < lo) lo = v
-                if (v > hi) hi = v
-            }
-            const span = (hi - lo) > 1e-6 ? (hi - lo) : 1
-
-            const bw = width / n
-            ctx.fillStyle = "#509475"      // Omarchy: theme accent
-            for (let i = 0; i < n; i++) {
-                const norm = (pts[i].y - lo) / span
-                const h = norm * height
-                ctx.fillRect(i * bw, height - h, Math.max(1, bw - 1), h)
-            }
-        }
-    }
-
-    Text {
-        anchors.centerIn: parent
-        visible: root.points.length === 0
-        text: "no signal"
-        color: "#53685B"                   // Omarchy: theme muted
-        font.family: "JetBrainsMono Nerd Font"
-    }
-}
-''')
-print("  wrote minimal src/contents/ui/Main.qml (plain QtQuick, no Kirigami)")
+ui.rmdir()
+print(f"  deleted {n_qml} upstream QML files (42Hz supplies frontend/ instead)")
 
 print(f"done -- patch inventory applied to {root}")
 print(f"       identity: {APP_ID} / {APP_SLUG} / {SINK_NAME} / {NODE_PREFIX}*")
+print( "next    cmake -B build -S . -G Ninja -DCMAKE_BUILD_TYPE=Release && ninja -C build")

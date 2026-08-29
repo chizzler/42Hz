@@ -13,6 +13,160 @@ status and narrative stay here. Detailed evidence lives in `docs/spike-*.md`.
 
 ---
 
+## 2026-08-29 — Where 42Hz's own source lives
+
+No commit yet; working tree only.
+
+Milestone 1 left the frontend as a 65-line QML string literal inside
+`reduce-deps.py`. That was right for a placeholder and is wrong for anything
+milestone 2 needs, so this session settled where 42Hz's own code lives and
+proved the arrangement by building it.
+
+### Decision: the repository is the build root
+
+A tracked top-level `CMakeLists.txt` adds the patched core and then `frontend/`:
+
+```cmake
+add_subdirectory(upstream/easyeffects-8.2.8)   # derived core, disposable
+add_subdirectory(frontend)                     # 42Hz's own, tracked
+```
+
+`upstream/` stays wholly regenerable, so the disposable-tree guarantee is
+untouched — but 42Hz's source now sits outside it, tracked, and is compiled
+from its real path rather than a copy. That last part is the whole point.
+
+**Rejected: copying `frontend/` into the tree at patch time.** It works, and it
+recreates the exact trap the disposable-tree rule exists to prevent, aimed at
+your own code instead of upstream's. Compile errors, QML traces,
+`compile_commands.json` and qmlls would all point at the copy under
+`upstream/`; editing the copy is the natural motion and the next `fetch.sh`
+eats it. A safeguard that misfires daily on the code you actually write is
+worse than none.
+
+**Rejected for now: splitting the core into a library** and giving 42Hz the
+executable. That is the shape `project.md`'s architecture section describes, and
+it makes the facade a link boundary instead of a directory convention. It also
+means rewriting `src/CMakeLists.txt` — ~30 target references — and
+re-verifying that rewrite on every upstream bump, against a file upstream
+changes freely. Straight conflict with the small-patch-inventory obligation.
+Revisit when the facade is under real pressure, around milestone 3-4.
+
+### The finding that justifies prototyping
+
+**The obvious way to do this builds cleanly and fails at runtime.**
+
+The first attempt kept one QML module and contributed 42Hz's files to it from
+outside, via `qt_target_qml_sources(easyeffects QML_FILES Main.qml)` in
+`frontend/`. CMake configured. 207/207 targets built. The generated
+`.qrc` pointed at the tracked file, and `Main.qml` was demonstrably embedded in
+the binary. Then:
+
+```
+terminate called after throwing an instance of 'std::runtime_error'
+  what():  Failed to load QML UI
+```
+
+The generated `qmldir` had no `Main` entry. **Qt finalizes a QML module at the
+end of the directory scope that declared it**, so by the time `frontend/` was
+processed the core's module was already written. The call added the resource
+and could not amend the module. Nothing warned — not CMake, not the build, not
+Qt at startup beyond the failure itself.
+
+Fixed by giving the frontend its **own** module: `qt_add_qml_module(hz_frontend
+STATIC URI hz.ui QML_FILES Main.qml)`, linked in as `hz_frontendplugin`. The
+core keeps its upstream URI `ee.ui` and, after patching, registers C++ types
+and ships no QML at all.
+
+The split turns out to be better than the thing it replaced. `ee.ui` is the
+derived core's type registry; `hz.ui` is 42Hz's interface. **Every `import
+ee.ui` in 42Hz QML is a reach across the facade boundary, and is greppable as
+such** — which is the first mechanical check `project.md`'s "UI code must not
+depend directly on upstream" has ever had.
+
+Two scope traps found on the way, both because CMake does not propagate
+sideways: `frontend/` needs its own `set(CMAKE_AUTOMOC ON)` and its own
+`qt_policy(SET QTP0001/QTP0004 NEW)`. Upstream sets both, in its own directory.
+
+### What this did to the patch inventory
+
+It shrank: 551 → 514 lines, and the frontend heredoc is gone. `reduce-deps.py`
+now deletes 66 upstream QML files and writes none. Two edits replaced it —
+dropping `QML_FILES` from the core's module, and pointing `main.cpp` at
+`qrc:/qt/qml/hz/ui/Main.qml` / `loadFromModule("hz.ui", "Main")`.
+
+That second one deserves a note: the literal in `main.cpp` gates
+`window->show()`. Get it wrong and the process runs happily with a live audio
+graph and no window, no error, no log line. It cost a confused minute here; it
+would cost more later. Also dropped the now-dead
+`set_source_files_properties(...Common.qml Validators.qml...)` block, which
+named QML singletons this script deletes.
+
+### Verified
+
+Full cycle from scratch — `fetch.sh` re-extracting over the hand-edited tree,
+which is exactly what it is for, then patch, then build from the repo root:
+
+- **229/229 targets**, 13M binary, 123 shared libraries, the same five KF6
+  (`ConfigCore`, `ConfigGui`, `CoreAddons`, `I18n`, `I18nQml`). Identical to the
+  milestone-1 baseline, so the layout change cost nothing.
+- No Kirigami, QtGraphs or QQC2-desktop-style linked. No stale `ee.ui` resource
+  paths in the binary.
+- `qmldir` declares `Main 1.0 Main.qml`.
+- Runs: window maps under Hyprland with class `io.github.chizzler.42Hz`, title
+  `42Hz`. Virtual nodes correct (`42hz_sink`, `42hz_source`, `hz_soe_*`,
+  `hz_sie_*`), all reaped on `SIGTERM`.
+- Spectrum delivery re-confirmed across the new module boundary: with a 440 Hz
+  tone playing into `42hz_sink`, `Main.qml` receives 100 points per frame.
+
+The binary is now `build/42hz` — `RUNTIME_OUTPUT_DIRECTORY` set at the root, so
+the path no longer moves with the upstream version.
+
+### A silent frontend, and why logs could not have caught it
+
+Creating `frontend/Main.qml` I changed its import from `ee.ui` to `hz.ui`,
+reasoning that the file now belongs to the frontend module. Wrong: `Main.qml`
+*is* `hz.ui` and does not import itself, while `StreamOutputEffects` and every
+other core type is registered in `ee.ui`. The correct import is unchanged from
+upstream.
+
+The application started, mapped its window, created its PipeWire nodes and
+looked entirely healthy. `StreamOutputEffects` was `undefined`, the
+`Connections` block bound to nothing, and a 60 Hz timer called a method on
+undefined — a frontend with no signal at all.
+
+**Nothing in the logs said so, and nothing could have.** Upstream includes KDE's
+`KDECompilerSettings`, which defines `QT_NO_DEBUG_OUTPUT` for Release builds, so
+`console.log` and QML's diagnostics are compiled out entirely. Every run this
+session produced a **zero-byte** log, which was read as "clean" when it only
+ever meant "muted". An earlier draft of this entry cited "zero QML warnings" as
+evidence; that claim was worth nothing.
+
+What worked was making the program state externally observable: the probe put
+`typeof StreamOutputEffects` and the live point count into the window title and
+read them back with `hyprctl clients -j`. `soe=undefined pts=0` before the fix,
+`soe=object pts=100` after, with a tone playing.
+
+Two things follow, and both outlast this bug. **A Release build cannot be
+verified from its own logs** — either build Debug for diagnosis, or observe from
+outside the process. And **a QML frontend fails silently by construction**:
+undefined identifiers are a runtime warning, not a build error, so "it launched
+and drew a window" is not evidence that anything is connected. Milestone 2 needs
+a way to assert the spectrum is live that does not depend on someone looking at
+it.
+
+### Still open
+
+The theme adapter is the next real work, and it is the honest starting point for
+milestone 2: the placeholder's colours carry `// Omarchy: theme accent` comments
+that are currently lies. `/usr/share/omarchy/shell/Commons/Color.qml` is the
+reference implementation and is on this host.
+
+Two pieces of tidying not done: `spike/` is no longer a spike directory — those
+two files are the build system — and the repo is on `master` while `project.md`
+and the README both say `main`. Free to fix before a first push, annoying after.
+
+---
+
 ## 2026-08-28 — Identity reassignment, and closing milestone 1
 
 **Commit:** `b43a017`
