@@ -19,7 +19,9 @@ path, default-sink routing, forced termination, and a speaker-tuning filter-chai
 on the active Omarchy theme — palette, typography and spectrum ramp all resolved
 from Omarchy state and updated without a restart when the theme changes. Bar density
 follows window width, two chrome modes are switchable from the keyboard, and
-signal and capability state is reported in the centre of the window.
+signal and capability state is reported in the centre of the window. An
+application mixer lists live playback streams with volume, mute, and
+processing-inclusion controls.
 
 ## Derivation and attribution
 

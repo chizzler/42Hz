@@ -189,10 +189,21 @@ by a live capability are advertised in the interface.
 
 | key | action |
 |---|---|
+| `s` | show or hide the mixer |
 | `f`, `1`, `2` | chrome mode |
 | `-` / `+`, `[` / `]` | bar density |
 | `Escape` | dismiss transient controls; never stops audio |
 | `q`, `Ctrl+W` | quit |
+
+While the mixer is up it takes the keys it needs and the rest still reach the
+window:
+
+| key | action |
+|---|---|
+| `↑` / `↓` | select a stream |
+| `←` / `→` | volume |
+| `m` | mute |
+| `p` | processing inclusion |
 
 42Hz may ship optional example Hyprland rules for common arrangements, but installation never applies them automatically.
 
@@ -203,6 +214,15 @@ Preserve EasyEffects semantics rather than reducing audio to a single ambiguous 
 - enumerate live playback application streams;
 - expose per-stream volume and mute when supported;
 - show and control whether a stream is processed;
+
+Controlling whether a stream is processed is two operations, and performing
+only one of them produces a control that appears not to work. The core links
+every new output stream to its sink unless the node is blocklisted, so clearing
+a stream's link is undone as soon as the stream is seen again — and for a client
+that pins its own target it never takes effect at all. The blocklist entry is
+what makes the choice durable; the link change is what makes it happen now.
+Both, always, in that order.
+
 - keep input and output processing pipelines separate;
 - distinguish virtual processing nodes from effective physical endpoints;
 - preserve Omarchy speaker-tuning chains;

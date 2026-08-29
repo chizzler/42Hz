@@ -22,6 +22,88 @@ happens — this remains the account of record. Detailed evidence lives in
 
 ---
 
+## 2026-08-30 (evening) — The application mixer
+
+**Commit:** `PENDING`
+
+Milestone 3's core: `s` reveals a list of live playback streams with volume,
+mute, and processing inclusion, driven entirely from the keyboard.
+
+Both chrome modes now share a single `Surface.qml` holding spectrum, state
+report and mixer. Keeping the composition in one place means a change to how
+the mixer shares space with the spectrum cannot land in one mode and not the
+other; the shells are down to a border and a legend.
+
+### Decision: processing inclusion is two operations, not one
+
+`PwManager.connectStreamOutput()` / `disconnectStream()` look like the whole
+control and are not. Disconnect only clears the stream's `target.node` and
+`target.object` metadata, and `pw_manager.cpp:395` re-links every output stream
+it sees unless the node is blocklisted. So a bare disconnect is undone the
+moment the stream is noticed again.
+
+Worse, it can be a no-op from the start: a client that pins its own target —
+`pw-play --target=…` does — is unaffected by a metadata change, so the first
+attempt moved nothing at all and looked exactly like a dead keybinding.
+
+`p` now writes `DbStreamOutputs.blocklist` *and* changes the link. The
+blocklist makes the choice durable, the link change makes it happen now.
+Verified from outside the application: the test stream moved from
+`42hz_sink` to sink `59`, the physical device, and came back on the second
+press.
+
+### Two states, two columns
+
+`muted` and `bypassed` were sharing one right-aligned column, and a muted
+bypassed stream showed only `muted` — the second state silently lost to the
+first for want of width. They are independent facts and now have independent
+columns. Same failure mode as an empty window meaning four things, at a smaller
+scale.
+
+### Testing a mixer without making noise
+
+A 10-minute silent WAV through `pw-play`, one instance per stream. Real
+clients, real sink-inputs, real links, and inaudible — and the volume and mute
+writes are verifiable from `pactl` rather than by ear. Note that `pw-play`
+reports volume cubically where the model and the UI are linear, so `85%` in
+42Hz and `95%` in `pactl` are the same number.
+
+Anything written during a test that lands in the settings database has to come
+back out. `~/.config/42hz/db/42hzrc` was checked after the run: the blocklist
+round-tripped to empty.
+
+### The stale-instance trap, second variant
+
+`build-debug/42hz -q` is safe only when an instance is already running. With
+none, it starts one in the foreground and blocks — which cost a two-minute
+timeout and killed the test it was setting up. Guard it: `pgrep -x 42hz &&
+42hz -q`.
+
+### Verified
+
+On a running Debug build, keys driven with `wtype`, every claim checked against
+`pactl` rather than the interface reporting on itself: the stream list; `↑`/`↓`
+selection across two concurrent streams; `←`/`→` moving volume 100% → 85%; `m`
+muting and unmuting; `p` moving the stream out of the processing graph and back;
+`s` and `Escape` showing and hiding without touching the graph; the empty state
+when the last stream ends.
+
+### Still open
+
+`[EffectsPipelines] bypass` exists in the settings database — global bypass is
+a setting already there, not new work, and it is in the first release scope.
+That is the obvious next thing.
+
+Not yet touched, and still the honest gap in milestone 2: the responsive test
+the milestone actually asks for, across tiled, floating, narrow, wide and
+fullscreen geometries, and light themes. The mixer has only been seen at one
+window size.
+
+`ShellFramed.qml` still draws its legend bottom left where `project.md` says
+bottom right. `spike/` is still misnamed and the repo is still on `master`.
+
+---
+
 ## 2026-08-30 (later) — Saying something when there is nothing to show
 
 **Commit:** `5af3a57`

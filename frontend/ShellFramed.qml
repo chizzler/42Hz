@@ -1,7 +1,7 @@
 import QtQuick
 import ee.ui
 
-// FRAMED: the spectrum inside a drawn border carrying pinned labels.
+// FRAMED: the same surface inside a drawn border carrying pinned labels.
 //
 // The border is drawn geometrically (see Frame.qml), so it does not depend on
 // the font carrying box-drawing glyphs and cannot be broken by
@@ -15,6 +15,9 @@ Item {
     property var points: []
     property int barWidth: 10
     property var stateReport: ({})
+    property bool streamsVisible: false
+
+    readonly property alias streamPanel: surface.streamPanel
 
     Frame {
         anchors.fill: parent
@@ -25,23 +28,19 @@ Item {
 
         title: "42Hz"
 
-        // Only bindings that actually exist are advertised.
-        legend: "[f]rame   [-/+] density   [q]uit"
+        // Only bindings that exist are advertised, and the legend follows what
+        // the keyboard will actually do next.
+        legend: shell.streamsVisible ? "[m]ute   [p]rocess   ←/→ volume   [Esc] close" : "[s]treams   [f]rame   [-/+] density   [q]uit"
 
-        Spectrum {
+        Surface {
+            id: surface
+
             anchors.fill: parent
 
             points: shell.points
             barWidth: shell.barWidth
-            gap: 2
-        }
-
-        StateReport {
-            anchors.fill: parent
-
-            title: shell.stateReport.title ?? ""
-            detail: shell.stateReport.detail ?? ""
-            isError: shell.stateReport.error ?? false
+            stateReport: shell.stateReport
+            streamsVisible: shell.streamsVisible
         }
     }
 }

@@ -133,6 +133,10 @@ Window {
     // this is signal density rather than zoom.
     property int barWidth: 10
 
+    // Reveal on intent: the mixer is not a mode the window is in, it is a
+    // thing the user asked to see. Hiding it changes nothing in the graph.
+    property bool streamsVisible: false
+
     Loader {
         id: shellLoader
 
@@ -143,6 +147,7 @@ Window {
             item.points = Qt.binding(() => root.points);
             item.barWidth = Qt.binding(() => root.barWidth);
             item.stateReport = Qt.binding(() => root.stateReport);
+            item.streamsVisible = Qt.binding(() => root.streamsVisible);
         }
     }
 
@@ -161,6 +166,11 @@ Window {
             root.showToast(root.barWidth + " px bars");
         }
 
+        // The mixer lives inside whichever chrome is loaded, but the window
+        // owns the keyboard, so there is one place that decides what a key
+        // means rather than two shells racing for focus.
+        readonly property var streams: shellLoader.item ? shellLoader.item.streamPanel : null
+
         function setShell(index) {
             root.shellIndex = index;
             root.showToast(root.shells[index].name);
@@ -169,7 +179,43 @@ Window {
         Keys.onPressed: event => {
             const ctrl = (event.modifiers & Qt.ControlModifier) !== 0;
 
+            // While the mixer is up it takes the keys it needs; everything
+            // else still falls through to the window.
+            if (root.streamsVisible && keyLayer.streams !== null) {
+                switch (event.key) {
+                case Qt.Key_Up:
+                    keyLayer.streams.moveSelection(-1);
+                    event.accepted = true;
+                    return;
+                case Qt.Key_Down:
+                    keyLayer.streams.moveSelection(1);
+                    event.accepted = true;
+                    return;
+                case Qt.Key_Left:
+                    keyLayer.streams.nudgeVolume(-0.05);
+                    event.accepted = true;
+                    return;
+                case Qt.Key_Right:
+                    keyLayer.streams.nudgeVolume(0.05);
+                    event.accepted = true;
+                    return;
+                case Qt.Key_M:
+                    keyLayer.streams.toggleMute();
+                    event.accepted = true;
+                    return;
+                case Qt.Key_P:
+                    keyLayer.streams.toggleProcessing();
+                    event.accepted = true;
+                    return;
+                default:
+                    break;
+                }
+            }
+
             switch (event.key) {
+            case Qt.Key_S:
+                root.streamsVisible = !root.streamsVisible;
+                break;
             case Qt.Key_F:
                 keyLayer.setShell((root.shellIndex + 1) % root.shells.length);
                 break;
@@ -189,9 +235,10 @@ Window {
                 keyLayer.setBarWidth(root.barWidth + 2);
                 break;
             case Qt.Key_Escape:
-                // Reserved: dismisses transient controls once there are any.
-                // It must never stop audio, so it does nothing here rather
-                // than falling through to something that would.
+                // Dismisses transient controls and nothing else. Hiding the
+                // mixer must never touch the graph, and Escape must never
+                // fall through to something that stops audio.
+                root.streamsVisible = false;
                 break;
             case Qt.Key_Q:
                 Qt.quit();
