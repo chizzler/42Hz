@@ -182,6 +182,18 @@ Clicking or invoking a keyboard action reveals the next relevant control. Escape
 dismisses transient controls without stopping audio. A second launch presents
 the existing instance.
 
+### Keyboard
+
+Every action is reachable by key at every window size, and only bindings backed
+by a live capability are advertised in the interface.
+
+| key | action |
+|---|---|
+| `f`, `1`, `2` | chrome mode |
+| `-` / `+`, `[` / `]` | bar density |
+| `Escape` | dismiss transient controls; never stops audio |
+| `q`, `Ctrl+W` | quit |
+
 42Hz may ship optional example Hyprland rules for common arrangements, but installation never applies them automatically.
 
 ## Stream and routing model
@@ -245,6 +257,11 @@ Detect and report capabilities independently:
 - **Processing ready:** virtual nodes and the processing graph are live.
 - **EQ ready:** the supported LV2 provider was discovered and instantiated.
 - **Omarchy theme ready:** resolved theme and font state were loaded.
+
+Silence, an unreachable audio service, a stopped pipeline and a crashed process
+must never look alike. Each is named in the centre of the window, in the space
+the signal would otherwise occupy. An empty window is not an acceptable report
+of anything.
 
 Startup proceeds in stages:
 

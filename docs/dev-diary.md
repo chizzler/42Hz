@@ -22,6 +22,91 @@ happens — this remains the account of record. Detailed evidence lives in
 
 ---
 
+## 2026-08-30 (later) — Saying something when there is nothing to show
+
+**Commit:** `PENDING`
+
+With no audio the window rendered nothing at all, which is indistinguishable
+from a dead PipeWire, a stopped pipeline, or a crash. That is the failure
+`project.md` has always asked to prevent, so this session made the causes
+distinct and gave the frontend a keyboard.
+
+### What the core will tell a frontend
+
+Nothing here needed a core change; it needed knowing which of the existing
+QML surfaces are honest. Probed on a running Debug build, once idle and once
+with a stream routed through `42hz_sink`:
+
+| | idle | stream present |
+|---|---|---|
+| `PwManager.runtimeVersion` | `"1.6.8"` | `"1.6.8"` |
+| `StreamOutputEffects.getPipeLineRate()` | `0` | `48` |
+| `ModelNodes.outputStreams` rows | `0` | `1` |
+| spectrum points | `0` | `111` |
+
+So: `runtimeVersion` is empty only without a server connection, the pipeline
+rate is non-zero only while the pipeline runs, and the stream model counts
+what the core is actually processing. Four states, four different sentences,
+all centred in the space the signal would otherwise occupy.
+
+`getOutputLevelLeft()` stays at `0.0` — level meters are off unless
+`setUpdateLevelMeters(true)` is called — so signal presence is read from the
+spectrum rather than from the meters.
+
+**A model's row count reaches QML through an `Instantiator`, and an
+`Instantiator` counts what it has built.** With no delegate it builds nothing
+and reports `0` for ever. The first probe read `streams=0` with audio plainly
+playing, and the wrong conclusion — that the model only lists streams routed
+through our own sink — survived two rounds before an empty `QtObject {}`
+delegate fixed it. It does list them; it was never asked to make any.
+
+### The test stream is silence
+
+Verifying "stream present" without making noise on someone's desk: a 60-second
+silent WAV played with `pw-play --target=42hz_sink`. It is a real client, a
+real sink-input, a real link through the processing graph, and inaudible. It
+also happens to exercise the case worth getting right — a stream that is
+playing and silent is *not* a fault, and the interface correctly says nothing.
+
+`pw-cat` fed from `/dev/zero` was tried first and exits immediately; it wants a
+file it can parse, not a stream of bytes.
+
+### Keyboard
+
+`f` cycles chrome, `1`/`2` select it directly, `-`/`+` (and `[`/`]`) change bar
+density, `q` and `Ctrl+W` quit. `Escape` is bound to nothing on purpose: it is
+reserved for dismissing transient controls, and must never fall through to
+something that stops audio.
+
+The framed legend advertised `[s]treams [e]q [b]ypass`, none of which was
+bound to anything. It now reads `[f]rame [-/+] density [q]uit`. Advertising a
+control that does not exist is the same class of dishonesty as an empty window
+that means four different things.
+
+### Verified
+
+By screenshot on a running Debug build, keys driven with `wtype`: `no audio`
+centred with its qualifier; the report clearing the moment the silent stream
+appears; `f` flipping bare and framed; the new legend; `q` ending the process.
+
+Worth recording for next time: **a newly mapped window takes focus, so `wtype`
+reaches it without any dispatcher call.** This Hyprland build exposes dispatch
+as a Lua API and none of the documented `hyprctl dispatch focuswindow` forms
+work against it; a quarter of an hour went into that before noticing the app
+was already focused.
+
+### Still open
+
+Unchanged: `ShellFramed.qml` still draws its legend bottom left where
+`project.md` says bottom right. `spike/` is still misnamed and the repo is
+still on `master` while the docs say `main`.
+
+Milestone 2's stated work is now done. What it has not had is the *responsive*
+test the milestone actually asks for — tiled, floating, narrow, wide and
+fullscreen geometries, and light themes, which have still never been looked at.
+
+---
+
 ## 2026-08-30 — Picking a layout by looking at it
 
 **Commit:** `993e96a`

@@ -33,6 +33,7 @@ qt_add_qml_module(hz_frontend
         Frame.qml
         Spectrum.qml
         SpectrumCells.qml
+        StateReport.qml
         ShellBare.qml
         ShellFramed.qml
 )
