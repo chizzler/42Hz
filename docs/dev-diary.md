@@ -24,7 +24,7 @@ happens — this remains the account of record. Detailed evidence lives in
 
 ## 2026-08-29 (evening) — Separating the design from its history
 
-**Commit:** *(backfill)*
+**Commits:** `cefe17b`, `ca12ff7`
 
 No code. `project.md` had accumulated four sessions of narrative — verification
 notes, decision rationale, per-milestone progress — and had stopped being
