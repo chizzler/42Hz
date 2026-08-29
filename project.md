@@ -5,7 +5,7 @@
 - **Public name:** 42Hz
 - **Executable:** `42hz`
 - **Working directory:** `~/Work/42Hz/`
-- **Status:** milestone 1 complete. The derived core builds, runs under its own identity, and has been verified against real application streams, the EQ LV2 provider, default-sink routing, forced termination, and a speaker-tuning filter-chain. The 42Hz frontend does not exist yet. Current state is tracked in `docs/devlog.md`, not here.
+- **Status:** milestone 1 complete; milestone 2 in progress. The derived core builds, runs under its own identity, and has been verified against real application streams, the EQ LV2 provider, default-sink routing, forced termination, and a speaker-tuning filter-chain. 42Hz's own frontend now exists in `frontend/`: a themed Wayland window rendering the live spectrum on the active Omarchy palette, typography and spectrum ramp, tracking theme changes without restart. It is not yet responsive to geometry, has no keyboard navigation, and reports no capability-specific state. Current state is tracked in `docs/devlog.md`, not here.
 
 ### How to read this document
 
@@ -285,8 +285,9 @@ Consequently:
    Pin the EasyEffects base, preserve licensing, map frontend/backend coupling, and prove access to live spectrum frames, application streams, PipeWire endpoints, and compatible Omarchy routing behavior. Build a 42Hz executable that owns its derived core and runs without the EasyEffects application installed. Validate the selected EQ LV2 URI and failure path.
    Identity reassignment was folded in from milestone 2, since first execution showed it gated safe development runs. Not covered here and deferred to their own milestones: per-stream volume, mute and processing-inclusion *control* (milestone 3), device churn, and a genuine Omarchy tuning profile as opposed to a stand-in.
 
-2. **Responsive spectrum shell**  
+2. **Responsive spectrum shell** — *in progress*  
    Build a normal themed Wayland window whose spectrum and essential state remain useful across representative tiled, floating, narrow, wide, and fullscreen geometries. Establish stable application identity, single-instance presentation, keyboard navigation, and capability-specific empty states.
+   Done: 42Hz's source now lives in `frontend/` outside the disposable tree, built as its own QML module; the Omarchy theme adapter resolves the live palette, typography and control-state tokens from all three source files and survives the destructive theme swap. Stable identity and single-instance presentation were inherited from milestone 1 and the derived core respectively, and are verified. Remaining: layout that responds to geometry, keyboard navigation, and capability-specific empty states — none of which exist yet.
 
 3. **Application mixer**  
    Expose live playback streams with supported volume, mute, and processing-inclusion controls. Verify game, voice-chat, browser, and music streams; device churn; speaker tuning; virtual sinks; and safe recovery after graph failure.

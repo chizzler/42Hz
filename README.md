@@ -10,11 +10,16 @@ QML interface that tracks the active Omarchy theme.
 See [`project.md`](project.md) for design goals and milestones, and
 [`docs/devlog.md`](docs/devlog.md) for the running development log.
 
-**Status:** milestone 1 complete. The EasyEffects-derived core builds and runs
-under its own identity against the pinned upstream base, and is verified against
-real application streams, the EQ LV2 provider and its failure path, default-sink
-routing, forced termination, and a speaker-tuning filter-chain. The 42Hz frontend
-does not exist yet.
+**Status:** milestone 1 complete; milestone 2 in progress. The EasyEffects-derived
+core builds and runs under its own identity against the pinned upstream base, and
+is verified against real application streams, the EQ LV2 provider and its failure
+path, default-sink routing, forced termination, and a speaker-tuning filter-chain.
+
+42Hz's own frontend lives in [`frontend/`](frontend) and renders the live spectrum
+on the active Omarchy theme — palette, typography and spectrum ramp all resolved
+from Omarchy state and updated without a restart when the theme changes. It is not
+yet responsive to window geometry, has no keyboard navigation, and does not report
+capability-specific state.
 
 ## Derivation and attribution
 
