@@ -9,43 +9,48 @@
 
 ### How to read this document
 
-Sections carry different weight, and it matters which is which — much of this was
-written before the derived core had ever been executed.
-
 **Commitments** are settled and should be argued with rather than quietly
 revised: the product principles, the initial scope, the architecture and its
 single-process constraint, the licensing and upstream obligations, the
 milestones, and the non-goals.
 
-**Sketches** are provisional and expected to change on contact with a running
-system. They are marked where they appear. A sketch is a record of current
-intent, not a specification to build against; if implementation contradicts one,
-the sketch is what gives way.
+**Sketches** are provisional and expected to change. They are marked where they
+appear. A sketch is a record of current intent, not a hard specification.
 
-Findings graduate into this document from `docs/devlog.md` once durable. Evidence
-lives in `docs/spike-*.md`.
+Findings graduate into this document from `docs/devlog.md` once durable.
+Evidence lives in `docs/spike-*.md`.
 
 ## Product goal
 
-42Hz provides concise access to the useful functionality of EasyEffects without dictating how the user arranges it. It is a normal Wayland application window that adapts to the geometry Hyprland and the user give it: a narrow spectrum strip, a compact application mixer, a larger effects editor, or anything between.
+42Hz provides access to the useful functionality of EasyEffects with a ultra
+minimal UI allowing the user control on placement. It is a normal
+Wayland application window.
 
-The interface follows the economy of BTOP rather than copying its appearance. Information density, layout, and disclosed controls respond to available space. Placement, tiling, floating, workspaces, and fullscreen remain the user's decision.
+The interface follows the economy of BTOP but doesn't slavishly copy its appearance. Information density, layout, and disclosed controls respond to available space. Placement, tiling, floating, workspaces, and fullscreen remain the user's decision.
 
-At its smallest useful size, 42Hz is a live spectrum that quietly confirms audio activity and invites interaction. As space or intent increases, it reveals application streams, routing state, bypass, and effect controls without permanent sidebars, card grids, fake hardware, or decorative chrome.
+At its smallest useful size, 42Hz is a live spectrum that quietly confirms audio activity and invites interaction. In it's initial state it appears without permanent sidebars, card grids, fake hardware, or decorative chrome.
 
 ## Product principles
 
 ### Responsive, not prescribed
 
-No layout is privileged. The interface must remain legible and useful across a broad range of window dimensions, reorganizing or progressively disclosing content rather than enforcing a fixed mode or location.
+No layout is privileged. The interface must remain legible and useful across
+a broad range of window dimensions, reorganizing or progressively disclosing
+content rather than enforcing a fixed mode or location.
 
 ### Spectrum first
 
-The live signal is the resting surface, not decoration around a settings panel. No signal, unavailable audio, and processing failure are distinct states and must be reported clearly.
+The live signal is the resting surface, not decoration around a settings panel.
+No signal, unavailable audio, and processing failure are distinct states and
+must be reported.
 
 ### Mixing is central
 
-42Hz must preserve EasyEffects' application-stream model. Users can identify active playback streams such as games, voice chat, browsers, and music players; adjust volume and mute state; and control whether each stream passes through processing. Input and output pipelines remain distinct.
+42Hz must preserve EasyEffects' application-stream model. Users can identify
+active playback streams such as games, voice chat, browsers, and music players;
+adjust volume and mute state; and control whether each stream passes through
+processing. A goal is to allow EQ presets to apply to each stream easily
+and without UI complexity
 
 ### Reveal on intent
 
@@ -53,11 +58,17 @@ Stream controls are immediately reachable from the spectrum. EQ and other effect
 
 ### Omarchy-native
 
-The application behaves as an ordinary, well-mannered Hyprland client and continuously reflects the active Omarchy theme. It does not install a shell plugin, require a daemon, prescribe window rules, or modify user or packaged Omarchy configuration.
+The application behaves as an ordinary, well-mannered Hyprland client and
+continuously reflects the active Omarchy theme. It does not install a shell
+plugin, require a daemon, prescribe window rules, or modify user or packaged
+Omarchy configuration.
 
 ### Backend stability over reinvention
 
-Reuse EasyEffects' PipeWire integration, processing pipelines, stream models, DSP hosting, presets, state handling, and spectrum production wherever practical. 42Hz is a focused frontend over a minimally changed derived core, not a new audio engine.
+Reuse EasyEffects' PipeWire integration, processing pipelines, stream models,
+DSP hosting, presets, state handling, and spectrum production wherever
+practical. 42Hz is a focused frontend over a minimally changed derived core,
+not a new audio engine.
 
 ## Initial scope
 
