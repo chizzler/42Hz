@@ -15,7 +15,7 @@ status and narrative stay here. Detailed evidence lives in `docs/spike-*.md`.
 
 ## 2026-08-29 — Where 42Hz's own source lives
 
-No commit yet; working tree only.
+**Commit:** `ec9d5dd`
 
 Milestone 1 left the frontend as a 65-line QML string literal inside
 `reduce-deps.py`. That was right for a placeholder and is wrong for anything
