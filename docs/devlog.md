@@ -15,7 +15,7 @@ status and narrative stay here. Detailed evidence lives in `docs/spike-*.md`.
 
 ## 2026-08-29 (afternoon) — The Omarchy theme adapter
 
-No commit yet; working tree only.
+**Commit:** `b9fea38`
 
 First real milestone-2 code. `frontend/theme.hpp` / `theme.cpp` resolve the
 active Omarchy theme into semantic tokens and keep them live; `Main.qml` no
