@@ -94,6 +94,7 @@ The derivation rests on the following properties of EasyEffects `v8.2.8`, verifi
 - The spectrum is already exposed to QML as a pull-based singleton API delivering points pre-resampled to a configurable point count. Responsive resampling is therefore a settings binding, not new DSP code.
 - No upstream QML is reusable. 42Hz supplies its entire frontend, which dominates the effort in milestones 2-4.
 - Spectrum delivery to a plain-QtQuick frontend is verified by execution, not only by inspection: a live signal renders through the derived core with no Kirigami, QtGraphs, or KDE style present (`docs/spike-02-first-run.md`).
+- A release build reports nothing. Upstream includes KDE's `KDECompilerSettings`, which defines `QT_NO_DEBUG_OUTPUT` for Release, so `console.log` and QML's own diagnostics are compiled out — and QML resolves undefined identifiers at runtime, not at build time. A Release build therefore fails silently by construction, and cannot be verified from its own logs. Diagnose in a Debug build, or observe the running process from outside it.
 - Identity reassignment is safe against the core, but the *shape* of a new name is not free. The core resolves a client's `target.object` by attempting a numeric parse first, and its `str_to_num` helper accepts a partial `std::from_chars` result — so a node name beginning with digits is misread as a serial and the stream is silently dropped from the model while remaining audible. `42hz_sink` triggered this; `easyeffects_sink` never could. Fixed in the patch inventory, and confirmed by control against stock EasyEffects (`docs/spike-03-identity.md`).
 
 Measured coupling, the patch inventory, and build verification are recorded in `docs/spike-01-frontend-coupling.md`. First execution of the derived core — live spectrum delivery, graph topology, routing behaviour, and teardown — is recorded in `docs/spike-02-first-run.md`.
@@ -156,10 +157,12 @@ Future effects use the same capability-driven pattern and appear only when suppo
 42Hz must fully and continuously adapt to the Omarchy theme selected by the user. Theme integration is functional behavior, not a one-time approximation at launch.
 
 - Read the resolved palette from `~/.local/state/omarchy/current/theme/colors.toml`, and per-surface role overrides from the adjacent `shell.toml`, when available. A theme may ship `shell.toml` directly to override the generated file.
+- Layer `~/.config/omarchy/shell.toml` on top of both. It is a machine-level override that survives theme switches and is where `omarchy display text size` writes `[font] base-size`, so its keys must win over the theme's.
 - Map the complete usable palette into semantic UI tokens, including background levels, foreground levels, muted state, accent, selection, warning, error, and spectrum colors.
 - Follow the active Omarchy font and text scaling where exposed.
-- Watch the atomically replaced current-theme state and apply changes live without restarting the application or audio graph.
-- Use theme and font hooks only as optional low-latency notifications; file/state monitoring remains the reliable path.
+- Watch the atomically replaced current-theme state and apply changes live without restarting the application or audio graph. **Watch the parent directory, not the theme directory or its files.** `omarchy-theme-set` performs `rm -rf current/theme` followed by `mv next-theme current/theme`, so a watch on `theme/` or on `colors.toml` is dropped by the swap and never recovers even though a file reappears at the same path moments later. `~/.local/state/omarchy/current/` outlives the swap and is the only durable signal. Re-establish the finer-grained watches after every load, and coalesce: one switch produces a burst of events.
+- Use theme and font hooks only as optional low-latency notifications; file/state monitoring remains the reliable path. Omarchy's own shell is notified through Quickshell IPC, which 42Hz cannot receive, so this is not a preference but the only available route.
+- Follow the font family Omarchy manages system-wide, which is the fontconfig alias `monospace` rather than a concrete family. Naming a resolved family defeats `omarchy font set`.
 - Derive contrast-safe fallbacks when a theme omits a value or produces an illegible pairing.
 - Start with built-in fallback tokens if Omarchy state is unavailable.
 - Keep all 42Hz mappings inside the application; never edit `/usr/share/omarchy/`, stock themes, or user configuration.

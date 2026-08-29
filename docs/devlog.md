@@ -13,6 +13,125 @@ status and narrative stay here. Detailed evidence lives in `docs/spike-*.md`.
 
 ---
 
+## 2026-08-29 (afternoon) — The Omarchy theme adapter
+
+No commit yet; working tree only.
+
+First real milestone-2 code. `frontend/theme.hpp` / `theme.cpp` resolve the
+active Omarchy theme into semantic tokens and keep them live; `Main.qml` no
+longer contains a single hard-coded colour, and its `// Omarchy: theme accent`
+comments have stopped being lies.
+
+### What the sources actually are
+
+Three files, in increasing precedence:
+
+```
+~/.local/state/omarchy/current/theme/colors.toml   foundational palette
+~/.local/state/omarchy/current/theme/shell.toml    per-surface roles
+~/.config/omarchy/shell.toml                       machine-level override
+```
+
+The third was nearly missed. It exists on this host, is where `omarchy display
+text size` writes `[font] base-size`, and **survives theme switches** — so it
+has to win over the theme's own file rather than being a same-rank source.
+
+Two more corrections came out of reading Omarchy's own resolver
+(`/usr/share/omarchy/shell/Commons/Color.qml`, read for reference only; nothing
+was copied):
+
+- **The font family is the fontconfig alias `monospace`**, not a concrete
+  family. Omarchy manages the alias system-wide through `omarchy font set`;
+  naming `JetBrainsMono Nerd Font` — as the placeholder did — pins the font and
+  defeats the CLI.
+- Themes may omit named keys, in which case the terminal palette (`color0`,
+  `color4`, `color7`, `color8`) is the fallback. Implemented the same way.
+
+### Decision: watch the parent directory
+
+**`omarchy-theme-set` does `rm -rf current/theme` then `mv next-theme
+current/theme`** (lines 292-293). A `QFileSystemWatcher` on `theme/` or on
+`colors.toml` is therefore dropped by the swap and never recovers, even though
+a file reappears at the same path a moment later. This is the classic watcher
+failure and it would have looked like "live reload works, except when it
+matters".
+
+`~/.local/state/omarchy/current/` outlives the swap and is the only durable
+signal. The finer-grained watches are kept as low-latency extras for in-place
+edits and re-established after every load, and a 100 ms coalescer absorbs the
+burst a single switch produces.
+
+Worth noting Omarchy's shell doesn't have this problem because it doesn't have
+this constraint: `Color.qml` sets `watchChanges: false` on both theme files and
+is pushed new payloads over Quickshell IPC. 42Hz cannot receive that, so file
+monitoring is not the fallback here — it is the only route. `project.md`
+already said so; now it says why.
+
+### Verified
+
+All four paths, on a running binary:
+
+- **Resolution.** Against `osaka-jade`: `bg=#111c18 fg=#c1c497 acc=#509475
+  muted=#53685b sel=#32473b err=#ff5345 specLo=#81b8a8 specHi=#f7e8b2
+  font=monospace@12 fill=0.04 sel%=0.18` — every one matching its source key.
+- **Live user override.** `base-size` 12 → 17 in `~/.config/omarchy/shell.toml`
+  reached the running app without a restart; restored to 12 the same way. (The
+  user's file was backed up and restored; it is byte-identical to before.)
+- **Live theme switch**, across the destructive swap: `catppuccin-latte` flipped
+  `dark` true → false and re-resolved the whole palette (`bg #111c18 →
+  #eff1f5`, `acc #509475 → #1e66f5`). Switched back to `osaka-jade`.
+- **Fallback.** With `HOME` pointed at an empty directory: `ready=false`,
+  built-in neutral palette, no crash. Those built-ins are Omarchy's own neutral
+  defaults rather than a 42Hz invention, so an unthemed run still looks like it
+  belongs on the desktop.
+
+The fallback run found a real gap: with no `dark_foreground` or
+`bright_foreground`, both ends of the spectrum ramp collapsed to the same
+colour and amplitude became unreadable. Now derived from the background when
+the two coincide, which is exactly the "contrast-safe fallback" `project.md`
+asks for — it just took running the degraded case to notice.
+
+A 440 Hz tone renders as expected: peak bin in `#f7e8b2`, neighbours in
+`#81b8a8`, ramp interpolated by amplitude. Screenshot rather than inference.
+
+### The afternoon's real lesson: a stale instance absorbs every launch
+
+An hour went into a bug that did not exist. After the theme work the window
+appeared **transparent**, with no spectrum and no "no signal" text — and a
+probe binding that should have been impossible to break returned nothing. The
+suspects were plausible and all wrong: a static `Q_INVOKABLE`, `Qt.tint`,
+a compositor opacity rule (`active_opacity` was 1.0, and no window rule
+matched).
+
+The actual cause: **42Hz is single-instance.** A process from an earlier build
+was still running, so every subsequent `build/42hz` became a secondary instance
+that asked the old one to present its window and exited. Rebuild, run, observe
+— observing the previous binary, indefinitely, with no error anywhere. The
+giveaway was hardcoding `color: "#ff0000"` and getting a green window.
+
+Two habits follow. **`build/42hz -q` before every run**, and never trust a
+launch whose PID exits immediately. And the reason it stayed invisible for so
+long is the same reason as this morning's: `QT_NO_DEBUG_OUTPUT` means a Release
+build cannot report anything, so "nothing in the logs" carries no information
+at all. Both findings are now in `project.md` under the upstream baseline,
+because they will outlive this session.
+
+Also cleared up: `Theme.withAlpha` works fine as a static `Q_INVOKABLE`
+(`wa=function call=#80ffffff`). It was removed from the paint loop anyway — the
+ramp is interpolated in JS now, since that loop runs 100 bars at 60 Hz and has
+no business crossing into C++ per bar.
+
+### Still open
+
+The adapter exposes `[controls]` state alphas that nothing consumes yet; they
+are there because the mixer in milestone 3 needs them, and reading them now was
+free. Light themes are resolved correctly but have never been *looked* at — the
+contrast guard has not been exercised against a theme that actually produces an
+illegible pairing, only against ones that do not. `spike/` is still misnamed,
+and the repo is still on `master` while the docs say `main`.
+
+---
+
 ## 2026-08-29 — Where 42Hz's own source lives
 
 **Commit:** `ec9d5dd`

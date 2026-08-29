@@ -25,9 +25,14 @@ qt_add_qml_module(hz_frontend
     STATIC
     URI hz.ui
     VERSION 1.0
+    SOURCES
+        theme.cpp
+        theme.hpp
     QML_FILES
         Main.qml
 )
+
+target_link_libraries(hz_frontend PRIVATE Qt6::Core Qt6::Gui Qt6::Quick)
 
 # Linking the generated plugin is what registers the module with the engine.
 target_link_libraries(easyeffects PRIVATE hz_frontendplugin)
