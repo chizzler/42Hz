@@ -77,8 +77,21 @@ exactly when there would otherwise be nothing on screen.
 42Hz must preserve EasyEffects' application-stream model. Users can identify
 active playback streams such as games, voice chat, browsers, and music players;
 adjust volume and mute state; and control whether each stream passes through
-processing. A goal is to allow EQ presets to apply to each stream easily
-and without UI complexity
+processing.
+
+**Processing is one chain, and inclusion is the per-stream control.** The
+derived core runs a single output pipeline: `DbStreamOutputs::plugins` is one
+list, and every stream that is not blocklisted passes through the same effects
+in the same order. There are no per-stream chains, and adding them would mean
+per-stream pipelines and node graphs — a rewrite of the layer this project
+exists not to rewrite.
+
+So the equalizer is an *output* equalizer, and a stream's relationship to it is
+binary: included and equalised, or excluded and untouched. That is not a
+reduction of the mixer's job but a statement of it — the processing-inclusion
+toggle is what applies the EQ to a stream, and it is already there. Per-stream
+presets are not a goal of the first release and must not be implied by the
+interface.
 
 ### Reveal on intent
 
@@ -370,7 +383,8 @@ where it is when it is bypassed, because the link change is metadata-only. It is
 still refused capture the next time it appears. This is a limitation of the
 mechanism, not of the control.
 
-- keep input and output processing pipelines separate;
+- keep input and output processing pipelines separate, and note that each is
+  singular: one chain per direction, shared by every stream in it;
 - distinguish virtual processing nodes from effective physical endpoints;
 - preserve Omarchy speaker-tuning chains;
 - never move a DSP filter's own stream as if it were an application;
@@ -453,13 +467,30 @@ must never look alike. Each is named in the centre of the window, in the space
 the signal would otherwise occupy. An empty window is not an acceptable report
 of anything.
 
-**The derived core does not currently reach the first of these.** `pw::Manager`'s
-constructor calls `util::fatal` when the PipeWire context connection fails, from
-`CoreServices` in `main()`, before the QML engine loads — so an audio service
-that is unreachable *at startup* aborts the process instead of being reported in
-the window. `audioServiceReady` can therefore only ever go false for a service
-that drops afterwards. Closing that gap is a change to the derived core and
-belongs to the patch inventory.
+**Losing the audio service is reported; failing to find it at startup is not,
+and neither is recovering from it.** Three distinct gaps, of which one is
+closed:
+
+- *Closed.* A service that goes away no longer kills the process.
+  `on_core_error` called `util::fatal` — `qCFatal`, which aborts — on
+  `"connection error"`, so a `systemctl --user restart pipewire` took 42Hz with
+  it. And `runtimeVersionChanged` was declared and emitted nowhere, which left
+  `audioServiceReady` evaluated once at load and frozen for the life of the
+  process, unable to go false for the very event it exists to report. Both are
+  in the patch inventory, and the value is now written on the object's own
+  thread rather than the PipeWire one, since a GUI-thread binding reads it.
+- *Open.* **42Hz does not reconnect.** After a restart it stays up and honestly
+  reports no audio service, but its virtual nodes are gone and nothing rebuilds
+  them. Surviving the loss is not the same as recovering from it, and the
+  requirement below asks for recovery.
+- *Open.* **An unreachable service at startup still aborts.** `pw::Manager`'s
+  constructor calls `util::fatal` when the context connection fails, from
+  `CoreServices` in `main()`, before the QML engine loads. Closing it is larger
+  than it looks: `pw_filter_new()` and `pw_filter_add_port()` dereference the
+  core, so every plugin must be constructible without one, and three spin loops
+  — the virtual-device wait in the constructor, and `connect_to_pw`'s wait on
+  `can_get_node_id` — have no exit when nothing will ever arrive. Until then,
+  *application ready* is not a state the window can report.
 
 Startup proceeds in stages:
 

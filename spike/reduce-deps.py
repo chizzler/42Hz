@@ -384,6 +384,63 @@ def target_object(s):
         "          util::str_to_num(target_object, serial)) {")
 
 
+# ---- pw_manager.cpp: an audio service that goes away is a state, not an exit ----
+#
+# Two defects, one cause: nothing ever told the frontend that the connection had
+# changed.
+#
+# runtimeVersionChanged is DECLARED in pw_manager.hpp and emitted nowhere, so a
+# QML binding on runtimeVersion is evaluated once at load and frozen for the
+# life of the process. `audioServiceReady` could therefore never go false --
+# the only thing it exists to say.
+#
+# And on_core_error called util::fatal on "connection error", which is qCFatal,
+# which aborts. A `systemctl --user restart pipewire` killed 42Hz outright,
+# against the requirement that it recover from PipeWire restarts without a UI
+# restart -- and a process that has vanished reports nothing at all, which is
+# the outcome the runtime-state rules exist to forbid.
+#
+# Both writes are moved onto the object's own thread. on_core_error and
+# on_core_info run on the PipeWire thread, and the value is now read by a GUI
+# thread binding, so assigning it here would race.
+#
+# This does NOT make an unreachable-at-startup PipeWire survivable. That is a
+# larger change -- pw_filter_new() and pw_filter_add_port() dereference the
+# core, and three spin loops have no exit without a connection -- and it is
+# recorded as open work rather than half-done here.
+def pw_manager_service_state(s):
+    s = sub(s,
+        '    if (std::string(message) == "connection error") {\n'
+        '      util::fatal("No connection to PipeWire. Aborting!");\n'
+        '    }\n',
+        '    if (std::string(message) == "connection error") {\n'
+        '      // Was util::fatal, which aborts. See reduce-deps.py.\n'
+        '      util::critical("No connection to PipeWire.");\n'
+        '\n'
+        '      QMetaObject::invokeMethod(\n'
+        '          pm,\n'
+        '          [pm]() {\n'
+        '            pm->runtimeVersion.clear();\n'
+        '\n'
+        '            Q_EMIT pm->runtimeVersionChanged();\n'
+        '          },\n'
+        '          Qt::QueuedConnection);\n'
+        '    }\n')
+
+    return sub(s,
+        "  pm->runtimeVersion = info->version;\n",
+        "  // Assigned on the object's own thread, and emitted at all. See\n"
+        "  // reduce-deps.py -- runtimeVersionChanged was declared and never fired.\n"
+        "  QMetaObject::invokeMethod(\n"
+        "      pm,\n"
+        "      [pm, version = QString::fromUtf8(info->version)]() {\n"
+        "        pm->runtimeVersion = version;\n"
+        "\n"
+        "        Q_EMIT pm->runtimeVersionChanged();\n"
+        "      },\n"
+        "      Qt::QueuedConnection);\n")
+
+
 # ---- contents/kcfg/*.kcfg: the KConfig file paths ----
 #
 # THIS is where settings actually land. db_manager.cpp only creates the
@@ -432,6 +489,7 @@ edit("src/plugin_base.cpp", plugin_base)
 edit("src/pw_node_manager.cpp", pw_node_manager_cpp)
 edit("src/pw_node_manager.cpp", target_object)
 edit("src/pw_node_manager.hpp", pw_node_manager_hpp)
+edit("src/pw_manager.cpp", pw_manager_service_state)
 edit("src/autostart.cpp", autostart)
 edit("src/global_shortcuts.cpp", shortcuts)
 edit("src/global_shortcuts.hpp", shortcuts)

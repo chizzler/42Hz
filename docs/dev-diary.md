@@ -22,6 +22,114 @@ happens — this remains the account of record. Detailed evidence lives in
 
 ---
 
+## 2026-08-30 (night, third pass) — 42Hz was dying every time PipeWire restarted
+
+**Commit:** _(backfilled)_
+
+Planning milestone 4 turned up two things worth more than the milestone did.
+
+### The per-stream EQ goal was never possible
+
+`project.md` said, under *Mixing is central*, that a goal was to let EQ presets
+apply to each stream. The derived core cannot do that and never could:
+`DbStreamOutputs::plugins` is one list for one output pipeline, and every stream
+that is not blocklisted passes through the same effects in the same order. There
+are no per-stream chains. Adding them means per-stream pipelines and node
+graphs — a rewrite of exactly the layer this project exists not to rewrite.
+
+The milestones had it right all along; both the initial scope and milestone 4
+say *output* equalizer, singular. Only the principle was aspirational, and
+nothing had needed it to be true until the EQ was about to be built on it.
+
+Decided: one output EQ, and the per-stream control is inclusion. Include a
+stream and it is equalised, exclude it and it is untouched — which the mixer
+already does and which the previous session had already made durable through
+the blocklist. `project.md` now says so, and says the interface must not imply
+per-stream presets.
+
+Also worth recording for milestone 4: the EQ itself is *already built*. The
+derived core carries `equalizer.cpp` with 32 bands per channel — gain,
+frequency, Q, width, type, mode, slope, solo, mute — plus `flatResponse()`,
+`sortBands()`, `calculateFrequencies()` and APO import/export, all reachable
+through KConfig singletons. Milestone 4 is a frontend job. And
+`DbStreamOutputs::plugins` currently defaults to empty, so 42Hz's output
+pipeline is a live passthrough with no effects in it at all; step one is putting
+`equalizer` in that list.
+
+### A capability that could never change
+
+`runtimeVersionChanged` is declared in `pw_manager.hpp` and emitted nowhere in
+the codebase. `audioServiceReady` binds to `runtimeVersion`, so it was evaluated
+once at load and frozen for the life of the process. The previous entry in
+`project.md` claimed it "can only ever go false for a service that drops
+afterwards"; in fact it could not go false at all. The whole capability was
+decorative, and had been since the theme adapter session first wrote it.
+
+### And the process was dying anyway
+
+Chasing that led to `on_core_error`, which called `util::fatal` on
+`"connection error"`. `util::fatal` is `qCFatal`, which aborts. So a PipeWire
+restart did not degrade 42Hz — it killed it, against the stated requirement that
+it recover from PipeWire restarts without a UI restart. Nobody had noticed
+because nobody had restarted PipeWire under it.
+
+Both halves are one patch: emit the signal, and clear the version instead of
+aborting. Both writes moved onto the object's own thread with
+`QMetaObject::invokeMethod`, because `on_core_info` and `on_core_error` run on
+the PipeWire thread and the value is now read by a GUI-thread binding — the
+unguarded assignment upstream ships was harmless only while nothing read it.
+
+### What this does not do
+
+It does not reconnect. After a restart 42Hz stays up and honestly reports no
+audio service, but `42hz_sink` is gone and nothing rebuilds it. Surviving the
+loss is not recovering from it, and the difference is now written down rather
+than blurred.
+
+It also does not fix startup. An unreachable PipeWire at *launch* still aborts
+in `pw::Manager`'s constructor, before the QML engine loads. That looked small
+and is not: `pw_filter_new()` and `pw_filter_add_port()` both dereference the
+core, so every plugin would have to be constructible without one, and three spin
+loops — the virtual-device wait in the constructor, and `connect_to_pw`'s wait
+on `can_get_node_id` — have no exit when nothing will ever arrive. Scoping it
+honestly and stopping was the right call; doing half of it silently would not
+have been.
+
+### Verified
+
+A genuine before and after, from one log. `build/42hz` was still the unpatched
+Release binary, so both were run through the same nested session and the same
+`systemctl --user restart pipewire`:
+
+```
+20:03:44  pw_manager.cpp:152  No connection to PipeWire. Aborting!
+          #6 ... on_core_error (42hz + 0x727d9d)        <- stack trace, process gone
+20:04:16  pw_manager.cpp:157  No connection to PipeWire.
+                                                        <- no abort, process alive
+```
+
+Then the whole cycle from clean: `fetch.sh` re-extracted the tree,
+`reduce-deps.py` re-applied the inventory and reported
+`src/pw_manager.cpp (17381 -> 17958 bytes)`, both trees rebuilt, and the
+*Release* binary was run through another PipeWire restart and stayed up with no
+abort logged. The prototype under `upstream/` was never relied on.
+
+Default sink never left the headset across four PipeWire restarts, and 42Hz was
+restarted afterwards so its virtual sink came back.
+
+### Still open
+
+The two gaps above — reconnection, and startup with no service — are now written
+into `project.md` as open rather than as one vague sentence.
+
+A capture of the post-restart window could not be taken: the nested session had
+left the parent's active workspace and screencopy does not run there, which the
+harness said in exactly those words. The log evidence is stronger anyway.
+
+Everything from the previous entry stands.
+
+---
+
 ## 2026-08-30 (night, second pass) — A spectrum that tells the truth about level
 
 **Commit:** `d1cf525`
