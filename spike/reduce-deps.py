@@ -441,6 +441,54 @@ def pw_manager_service_state(s):
         "      Qt::QueuedConnection);\n")
 
 
+# ---- refuse to capture a stream whose path returns to 42Hz's own sink ----
+#
+# apps -> 42hz_sink -> processing -> the stream -> 42hz_sink is a closed loop,
+# and under processAllOutputs 42Hz builds it itself. One command makes it:
+#
+#     pactl load-module module-loopback source=42hz_sink.monitor
+#
+# project.md requires refusing exactly this, and marks it as 42Hz's own
+# requirement rather than upstream's -- stock EasyEffects behaves identically.
+#
+# PipeWire names the relationship: the capture and playback halves of a loopback
+# (and of a filter-chain sink) share PW_KEY_NODE_LINK_GROUP. The hop between
+# them is inside the module and is not a PipeWire link, so walking the graph
+# never finds it; the link-group is the only thing that does.
+#
+# Two things had to be found the hard way. Neither key is in the registry's
+# global props, only in the node's own info props, so reading them at
+# registration silently yielded empty strings. And the core DISCARDS the proof
+# before it is needed: a capture stream recording from 42hz_sink is not
+# recording from the mic, so it is ignored and removed from the node model --
+# the half that proves a loop is thrown away one step before the half that would
+# close it is judged. Hence the set, populated ahead of those tests.
+#
+# The refusal releases rather than merely skips. onNodeInfo fires repeatedly and
+# the two halves register in no guaranteed order, so an earlier callback may
+# already have pointed the stream at us; clearing target.node/target.object
+# undoes that and the stream falls back to the default sink.
+def pw_objects_link_group(s):
+    return sub(s, "  QString application_id;\n", "  QString application_id;\n\n" + "  // PW_KEY_NODE_LINK_GROUP. PipeWire marks the halves of one logical\n  // stream with this -- the capture and playback sides of a loopback, or of\n  // a filter-chain sink. It is what lets a path that returns to 42Hz's own\n  // sink be recognised at registration, before the links that would close\n  // the loop exist.\n  QString link_group;\n\n  // PW_KEY_TARGET_OBJECT as the client asked for it, by name or by serial.\n  // Empty means the node follows the default device.\n  QString target_object;\n")
+
+
+def pw_node_manager_cycle_cpp(s):
+    anchor_out = '  if (nd->nd_info->media_class == tags::pipewire::media_class::output_stream) {\n    if (const auto* target_object'
+    s = sub(s, anchor_out, "  // Read before the ignore tests below, because they are what discards the\n  // evidence. Neither key is in the registry's global props -- only in the\n  // node's own info props.\n  if (const auto* link_group = spa_dict_lookup(info->props, PW_KEY_NODE_LINK_GROUP)) {\n    nd->nd_info->link_group = link_group;\n  }\n\n  if (const auto* target_object = spa_dict_lookup(info->props, PW_KEY_TARGET_OBJECT)) {\n    nd->nd_info->target_object = target_object;\n  }\n\n  // Remember any link-group that reads from our own sink.\n  //\n  // This has to be recorded here, before the tests below, because those tests\n  // throw the proof away: a capture stream recording from 42hz_sink is not\n  // recording from the mic, so it is ignored and REMOVED from the model. The\n  // half that proves a loop exists is discarded one step before the half that\n  // would close it is judged.\n  if (!nd->nd_info->link_group.isEmpty() && !nd->nd_info->target_object.isEmpty() &&\n      nd->nd_info->media_class == tags::pipewire::media_class::input_stream) {\n    const auto sink_serial = QString::fromStdString(util::to_string(nm->ee_sink_node.serial));\n\n    if (nd->nd_info->target_object == nm->ee_sink_node.name || nd->nd_info->target_object == sink_serial) {\n      nm->link_groups_reading_ee_sink.insert(nd->nd_info->link_group);\n    }\n  }\n\n" + anchor_out)
+
+    anchor_sink = '  auto connect_to_ee_sink = [&]() {\n    if (DbMain::processAllOutputs() && !nd->nd_info->is_blocklisted) {\n'
+    s = sub(s, anchor_sink, anchor_sink + '      // Refuse to link a stream whose path returns to our own sink.\n      //\n      // Released rather than merely skipped. onNodeInfo fires repeatedly, and\n      // the two halves of the loop do not register in a guaranteed order, so an\n      // earlier callback may already have pointed this stream at us before the\n      // capture half arrived to prove it was a loop. Clearing the target is\n      // what undoes that; the stream then follows the default sink, which for a\n      // monitor loopback is what was wanted anyway.\n      if (nm->returns_to_ee_sink(*nd->nd_info)) {\n        util::debug(std::format("{} feeds back into {}. Refusing to capture it.",\n                                nd->nd_info->name.toStdString(), tags::pipewire::ee_sink_name));\n\n        nm->metadata_manager.set_property(nd->nd_info->id, "target.node", nullptr, nullptr);\n        nm->metadata_manager.set_property(nd->nd_info->id, "target.object", nullptr, nullptr);\n\n        return;\n      }\n' + "\n")
+
+    return sub(s, 'void NodeManager::setNodeMute(uint64_t serial, bool state) {', "// A stream must not be captured if what it plays is what 42Hz's own sink\n// produces. apps -> 42hz_sink -> processing -> the stream -> 42hz_sink is a\n// closed loop, and under processAllOutputs 42Hz builds it itself.\n//\n// PipeWire names the relationship for us: the capture and playback halves of a\n// loopback, and of a filter-chain sink, share PW_KEY_NODE_LINK_GROUP. The hop\n// between them is inside the module and is not a PipeWire link, so no amount of\n// walking the graph finds it -- the link-group is the only thing that does.\n//\n// The upstream guard in StreamOutputEffects::on_link_changed does not cover\n// this. It compares the default output device against our sink by name, one\n// specific arrangement, and a loopback sourced from our own monitor closes a\n// loop without the default device being involved at all.\nauto NodeManager::returns_to_ee_sink(const NodeInfo& node) const -> bool {\n  return !node.link_group.isEmpty() && link_groups_reading_ee_sink.contains(node.link_group);\n}\n\n" + 'void NodeManager::setNodeMute(uint64_t serial, bool state) {')
+
+
+def pw_node_manager_cycle_hpp(s):
+    s = sub(s, '#include "pw_model_nodes.hpp"', '#include <QSet>\n#include "pw_model_nodes.hpp"')
+    s = sub(s, "  void setNodeMute(uint64_t serial, bool state);",
+            "  void setNodeMute(uint64_t serial, bool state);\n\n" + "  // True when capturing this stream would close a loop through 42Hz's own sink.\n  // See the definition for why link-group is the right relationship.\n  [[nodiscard]] auto returns_to_ee_sink(const NodeInfo& node) const -> bool;")
+    return sub(s, "  models::Nodes& model_nodes;", "  // Link-groups known to read from 42Hz's own sink. Kept here rather than\n  // derived from the node model, because the capture half that proves it is\n  // ignored and removed from that model before it can be consulted.\n  QSet<QString> link_groups_reading_ee_sink;\n" + "\n  models::Nodes& model_nodes;")
+
+
 # ---- contents/kcfg/*.kcfg: the KConfig file paths ----
 #
 # THIS is where settings actually land. db_manager.cpp only creates the
@@ -490,6 +538,9 @@ edit("src/pw_node_manager.cpp", pw_node_manager_cpp)
 edit("src/pw_node_manager.cpp", target_object)
 edit("src/pw_node_manager.hpp", pw_node_manager_hpp)
 edit("src/pw_manager.cpp", pw_manager_service_state)
+edit("src/pw_objects.hpp", pw_objects_link_group)
+edit("src/pw_node_manager.cpp", pw_node_manager_cycle_cpp)
+edit("src/pw_node_manager.hpp", pw_node_manager_cycle_hpp)
 edit("src/autostart.cpp", autostart)
 edit("src/global_shortcuts.cpp", shortcuts)
 edit("src/global_shortcuts.hpp", shortcuts)

@@ -22,6 +22,95 @@ happens — this remains the account of record. Detailed evidence lives in
 
 ---
 
+## 2026-08-30 (night, fifth pass) — Refusing the loop
+
+**Commit:** _(backfilled)_
+
+The defect the mixer sweep found, fixed. `pactl load-module module-loopback
+source=42hz_sink.monitor` no longer closes a loop through the processing sink.
+
+### The link graph could never have found it
+
+The first instinct — walk backwards from the stream's input ports and refuse if
+the path reaches our own monitor — cannot work. The two halves of a loopback are
+joined *inside the module*; there is no PipeWire link between them to walk.
+
+PipeWire already names the relationship. Both halves carry the same
+`PW_KEY_NODE_LINK_GROUP`, and the capture half carries `target.object =
+42hz_sink`. So the playback half is judged by what its sibling is pointed at,
+which is the only relationship that actually exists.
+
+### Two ways to write it that look right and do nothing
+
+**Reading the properties where nodes are registered.** `registerNode` gets the
+registry's *global* props, which carry neither key. The test compiled, ran, and
+logged `link_group=[] target=[]` on every node. They arrive only in the node's
+own info props, which is where upstream reads `app_process_binary` for the same
+reason.
+
+**Looking the sibling up in the node model.** It is not there. The core removes
+it first:
+
+```
+The input stream input.loopback-458292-13 does not have as target the same mic
+used as EE input: alsa_input...  The user wants it to record from device
+42hz_sink. We will ignore this stream.
+Stream/Input/Audio 116 input.loopback-458292-13 has been removed
+```
+
+A capture stream recording from 42Hz's sink is not recording from the mic, so
+the input pipeline ignores it and drops it from the model. **The half that
+proves the loop is discarded one step before the half that would close it is
+judged.** So the relationship is recorded ahead of those tests — a set of
+link-groups known to read from our sink — rather than looked up after them.
+
+### Refusing is not enough; it has to let go
+
+With the set in place the refusal fired, twelve times, and the loopback was
+still in `42hz_sink`. `onNodeInfo` fires repeatedly and the halves register in
+no fixed order, so an earlier callback had already pointed the stream at us
+before the capture half existed to prove it was a loop. Skipping later
+callbacks changes nothing once the metadata is set.
+
+So the refusal clears `target.node` and `target.object`, the way
+`disconnectStream` does. The stream then follows the default sink — which for a
+monitor loopback is what was wanted anyway.
+
+### Verified
+
+From a clean cycle: `fetch.sh` re-extracted, `reduce-deps.py` re-applied the
+whole inventory (`pw_objects.hpp` 3309 -> 3807, `pw_node_manager.cpp` 27511 ->
+30799, `pw_node_manager.hpp` 4479 -> 5007), both trees rebuilt, and the
+**Release** binary tested — the prototype under `upstream/` was never relied on.
+
+With the loopback and two ordinary streams live at once:
+
+| stream | landed in |
+|---|---|
+| `output.loopback-…` | sink 69, the headset — refused |
+| `mpv` | `42hz_sink` — captured |
+| `alsa_playback.nolo_client` | `42hz_sink` — captured |
+
+Only the ordinary streams feed `42hz_sink:playback`. That pairing matters more
+than the refusal on its own: a guard that also stopped normal capture would pass
+the cycle test and break the product.
+
+Headset muted throughout and restored to unmuted at 100%; default sink never
+moved.
+
+### Still open
+
+Milestone 3's remaining coverage: browser and game streams, a hand-built
+filter-chain sink for speaker-tuning coexistence, and the mixer's on-screen
+display. No voice-chat client exists on this machine.
+
+The filter-chain case is the one to run next, because it is the same mechanism —
+a filter-chain sink's two halves share a link-group exactly as a loopback's do,
+so this fix should already cover the Omarchy speaker-tuning hazard `project.md`
+describes. Should, having not been tested.
+
+---
+
 ## 2026-08-30 (night, fourth pass) — The mixer sweep, and a cycle it let through
 
 **Commit:** `849e7bb`

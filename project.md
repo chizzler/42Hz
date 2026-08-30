@@ -404,6 +404,35 @@ mechanism, not of the control.
 - preserve Omarchy speaker-tuning chains;
 - never move a DSP filter's own stream as if it were an application;
 - refuse to link a stream whose path returns to 42Hz's own sink;
+
+**Detecting that path needs `node.link-group`, not the link graph.** The two
+halves of a loopback — and of a filter-chain sink — are joined *inside* the
+module, not by a PipeWire link, so no amount of walking links finds the
+connection. PipeWire marks them with `PW_KEY_NODE_LINK_GROUP` instead, and that
+is the only thing that relates the playback half to what its capture half is
+pointed at.
+
+Two properties of the core make this harder than it reads:
+
+- **Neither `node.link-group` nor `target.object` is in the registry's global
+  properties.** They arrive only in the node's own info properties, so reading
+  them where a node is registered yields empty strings and a test built on them
+  silently never fires.
+- **The core discards the proof before it is needed.** A capture stream
+  recording from 42Hz's sink is not recording from the microphone, so the input
+  pipeline ignores it and *removes it from the node model* — the half that
+  proves a loop exists is thrown away one step before the half that would close
+  it is judged. The relationship must therefore be recorded ahead of those
+  tests, not looked up afterwards.
+
+A refusal releases the stream rather than merely skipping it. `onNodeInfo` fires
+repeatedly and the two halves register in no guaranteed order, so an earlier
+callback may already have pointed the stream at 42Hz; clearing `target.node` and
+`target.object` undoes that, and the stream falls back to the default sink.
+
+The guard upstream ships is not this. It compares the *default output device*
+against 42Hz's sink by name — one arrangement — and a loopback sourced from
+42Hz's own monitor closes a loop without the default device being involved.
 - change routing only after the replacement processing path is confirmed live;
 - fall back to a valid physical endpoint if the graph fails or disappears.
 
