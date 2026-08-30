@@ -24,7 +24,7 @@ happens — this remains the account of record. Detailed evidence lives in
 
 ## 2026-08-30 (late, third pass) — The theme was arriving, but not in the spectrum
 
-**Commit:** _(backfilled)_
+**Commit:** `0fccd97`
 
 The question was whether 42Hz really consumes the active Omarchy theme. It does
 — backgrounds, foregrounds, borders, accent and control alphas all track the
@@ -132,7 +132,7 @@ and the repo is still on `master`.
 
 ## 2026-08-30 (late, second pass) — Fixing what the sweep found
 
-**Commit:** _(backfilled)_
+**Commit:** `f635691`
 
 The four defects from the sweep, all fixed and re-verified, plus a size floor
 the window reports for itself. And a correction: the dispatch finding from this
@@ -314,7 +314,7 @@ referenced by nothing; `spike/` is still misnamed; the repo is still on
 
 ## 2026-08-30 (late) — A nested compositor, and the responsive test finally run
 
-**Commit:** _(backfilled)_
+**Commit:** `f3f37ec`
 
 Three sessions had ended with "the responsive test is still not done". The last
 one worked out why: it cannot be done on a desktop that is in use. This session
