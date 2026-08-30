@@ -200,6 +200,13 @@ Window {
             case Qt.Key_S:
                 root.streamsVisible = !root.streamsVisible;
                 break;
+            case Qt.Key_B:
+                // Global bypass is already a setting the core acts on: DbMain
+                // drives a coalescer that calls set_bypass() on both pipelines.
+                // Nothing here decides what bypass means, only that it moved.
+                DbMain.bypass = !DbMain.bypass;
+                root.showToast(DbMain.bypass ? "bypassed" : "processing");
+                break;
             case Qt.Key_F:
                 keyLayer.setShell((root.shellIndex + 1) % root.shells.length);
                 break;

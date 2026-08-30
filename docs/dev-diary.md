@@ -22,6 +22,179 @@ happens — this remains the account of record. Detailed evidence lives in
 
 ---
 
+## 2026-08-30 (afternoon) — The blocklist key, global bypass, and how to see anything
+
+**Commit:** _pending_
+
+Two of the three things the last session left at the top of the list. The third
+— the responsive test milestone 2 actually asks for — is still not done, and
+this session found out why it keeps not getting done.
+
+### The crash was not a crash
+
+Reported as a crash in the test window. `coredumpctl` had nothing from today,
+and the process was still alive in state `T`, `WCHAN do_signal_stop`, its
+process group backgrounded on its pts while bash held the foreground. `tostop`
+was off, so SIGTTOU is ruled out; that leaves Ctrl+Z. `at-spi2-registryd`
+logged "Disabling unresponsive app" for the same pid, which is the same fact
+from outside. A suspended Qt client is indistinguishable from a hung one by
+looking at it — **check the process state before reading anything into a frozen
+window.**
+
+The one real 42hz core on record is from the day before: SIGABRT, uncaught C++
+exception out of `initQml` in the Release build. That is the
+already-documented Release-build trap, not a new fault.
+
+### The blocklist fix was smaller than planned, because the core already had it
+
+The plan was a `setStreamProcessed(id, bool)` facade command added through
+`reduce-deps.py`. That turned out to be the wrong shape: `Nodes::setData` on
+`Roles::IsBlocklisted` already picks the blocklist key, already honours
+`blocklistUsesMediaName`, and already writes the setting — and
+`onOutputBlocklistChanged` already reconciles every row's `is_blocklisted` and
+links or unlinks the stream. The whole policy is upstream's, reachable from QML
+by writing one model role.
+
+So the fix is a deletion. `toggleProcessing()` no longer composes a blocklist
+entry, no longer writes `DbStreamOutputs.blocklist`, and no longer calls
+`connectStreamOutput`/`disconnectStream`. It writes
+`row.model.isBlocklisted = !row.isBlocklisted` and holds no policy at all. The
+delegate gained `required property var model` to write back through, and
+`required property bool isBlocklisted` to read the choice — the displayed
+"bypassed" flag still reads `connected`, which is the graph's answer rather
+than ours.
+
+`required property int id` went with it — its only readers were the two removed
+`PwManager` calls, and a required property nothing reads still obliges the model
+to supply the role.
+
+**Patch inventory unchanged.** Worth stating plainly, because the session
+started out intending to add to it. The best available core change was no core
+change.
+
+### What was actually verified, and the accident that proved it
+
+Two silent `pw-play` streams and a live Chromium. Pressing `p` on `pw-play`:
+
+- the core cleared `target.node`/`target.object` on that node — so `setData`
+  reached the core and the handler ran;
+- `~/.config/42hz/db/42hzrc` flushed to `blocklist=pw-play` on exit: **one**
+  entry, under the node name, which is the key the core matches. The old code's
+  failure was writing a key the core might not match and then appending a
+  second one on the next toggle;
+- on a fresh start with that blocklist in place, *both* `pw-play` nodes were
+  added and neither was given a target — they linked straight to the physical
+  device;
+- pressing `p` again moved one back onto `42hz_sink` and the `blocklist` key
+  vanished from the settings file entirely.
+
+The accident: a second `pw-play` started while the first was blocklisted was
+refused capture at node-add time. Both are named `pw-play`, and the blocklist
+key *is* the node name, so blocklisting one blocklists every stream with that
+name. That is upstream's semantics, and it was the clearest evidence available
+that the setting had really been written.
+
+The stream that pinned its own target with `--target=42hz_sink` did **not**
+move when bypassed, because the link change is metadata-only. It is still
+refused capture next time it appears. Recorded in `project.md` as a limitation
+of the mechanism rather than a bug in the control.
+
+*Found and deliberately not fixed:* `pw_node_manager.cpp:237-243` clobbers its
+own result — the `application_id` match is overwritten by the
+`app_process_binary` line instead of being OR-ed with it. It changes nothing
+for 42Hz: at node-add time both those fields are still empty, and 42Hz only
+ever writes the node name. It is an upstream bug worth reporting and not worth
+an entry in the patch inventory.
+
+### Global bypass was already wired; it needed a key and a place to say so
+
+`DbMain.bypass` drives a coalescer in `main.cpp` that calls `set_bypass()` on
+both pipelines. `b` toggles it, verified by the core logging "Enabling global
+bypass" and "Disabling global bypass".
+
+Saying so is the part that needed a decision. Bypass looks *exactly* like
+working processing: the spectrum is produced either way, so nothing in the
+window would report it. Framed mode's top-left is "identity and state" by
+`project.md`, so the title reads `42Hz · bypassed` while it is on, and the
+frame's line breaks around the longer label without any help. Bare mode draws
+nothing, which is that mode's whole commitment — there the toast on the
+keypress is the report. Legend gained `[b]ypass`.
+
+### Three things about seeing what the program is doing
+
+Half this session went into observation rather than change, and all three are
+worth never rediscovering:
+
+**The core silences itself.** `main()` calls
+`QLoggingCategory::setFilterRules("42hz.debug=false")` *after* Qt has read
+`QT_LOGGING_RULES`, so neither the environment variable nor a Debug build can
+turn it back on. `--debug` is the only switch. Nearly patched `main.cpp` for
+this before finding the flag already exists.
+
+**And then logs somewhere other than where you sent it.** A detached launch
+redirecting stderr to a file produced an empty file and a full journal at the
+same time — so reading only the file makes a working build look mute, the same
+trap as the Release build by a different route. But a later detached run with
+`--debug` produced *neither*, including no startup lines, and that was not
+chased down. So: check `journalctl` first, never trust an empty redirect, and
+when the log actually matters run the binary from a terminal rather than
+detached. The re-verification after the `id` removal was done that way round —
+by quitting and reading `blocklist=pw-play` out of the settings file, which
+needs no logging at all and is the more direct evidence anyway.
+
+**This Hyprland's dispatchers are a Lua API, and `hyprctl dispatch` cannot
+reach them.** The previous session lost a quarter of an hour to this and
+recorded that the documented forms do not work. They do not, but `hyprctl eval`
+does, and the working form is:
+
+```lua
+local w
+for _,x in ipairs(hl.get_windows()) do if x.class=="io.github.chizzler.42Hz" then w=x end end
+hl.dispatch(hl.dsp.focus({ window = w }))
+```
+
+`focus` takes the window **object**. Passing `"address:0x…"` as a string
+returns `ok` and does nothing, which is worse than an error. `hl.dsp` can be
+enumerated with `error(table.concat(keys, ", "))`, because `eval` returns only
+`ok` and error text is the only channel out.
+
+**Do not probe these dispatchers by calling them with junk arguments.**
+`hl.dsp.window.float({bogus=1})` and `.fullscreen({bogus=1})` do not reject the
+table — they return `ok` and act on whatever window currently has focus, which
+during this session was not always 42Hz.
+
+### Driving a GUI on a desktop someone is using
+
+The keystroke tests kept landing in the user's applications: focus-follows-mouse
+returned focus to whatever was under the cursor between the focus call and
+`wtype`, and 42Hz had joined an existing tab group, so it was frequently behind
+another window at identical geometry. The fix is a wrapper that focuses 42Hz,
+re-reads `activewindow`, and **refuses to send the key** unless 42Hz really has
+it. It refused several times; each refusal is a keystroke that did not go into
+somebody's file manager.
+
+### Still open
+
+**The responsive test is still not done, and now the reason is clear.** It
+needs the window at a series of geometries, and every attempt to resize it was
+undone by the tiling layout within a second. It cannot be done reliably on a
+desktop that is in use. The options are a quiet screen, or a nested Hyprland
+with its own `WAYLAND_DISPLAY` — the latter is worth building once, because it
+makes the whole milestone-2 geometry sweep repeatable and independent of
+whatever else is on screen. No other compositor is installed to nest.
+
+Light themes still unlooked-at.
+
+Unchanged from before: the keymap is a string literal in `ShellFramed`'s legend
+while the bindings live in `Main`, and this session added `b` to both by hand,
+which is exactly the drift that arrangement invites. Publishing the binding
+table as data both read is still the fix. `ShellFramed.qml` still draws its
+legend bottom left where `project.md` says bottom right. `SpectrumCells.qml` is
+still built and referenced by nothing. `spike/` is still misnamed and the repo
+is still on `master`.
+
+---
+
 ## 2026-08-30 (night) — Cleanup pass over the milestone-2/3 frontend
 
 **Commit:** `9d3f0df`

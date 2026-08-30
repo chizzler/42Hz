@@ -5,7 +5,7 @@
 - **Public name:** 42Hz
 - **Executable:** `42hz`
 - **Working directory:** `~/Work/42Hz/`
-- **Status:** milestone 1 complete; milestone 2 in progress. Progress, verification and open threads are tracked in [`docs/dev-diary.md`](docs/dev-diary.md), not here.
+- **Status:** milestone 1 complete; milestones 2 and 3 in progress. Milestone 2's stated work is built but its responsive verification across geometries is outstanding, so the milestone is not closed. Progress, verification and open threads are tracked in [`docs/dev-diary.md`](docs/dev-diary.md), not here.
 
 ### How to read this document
 
@@ -116,10 +116,22 @@ The derivation rests on the following properties of EasyEffects `v8.2.8`:
 - No upstream QML is reusable. 42Hz supplies its entire frontend, which dominates the effort in milestones 2-4.
 - Spectrum delivery reaches a plain-QtQuick frontend with no Kirigami, QtGraphs, or KDE style present.
 
-Two properties of the base constrain how work on it is done, and both are easy
+Three properties of the base constrain how work on it is done, and each is easy
 to rediscover the expensive way:
 
 - **A Release build cannot be verified from its own logs.** Upstream includes KDE's `KDECompilerSettings`, which defines `QT_NO_DEBUG_OUTPUT` for Release, so `console.log` and QML's own diagnostics are compiled out; QML also resolves undefined identifiers at runtime rather than at build time. A Release build therefore fails silently by construction. Diagnose in a Debug build, or observe the running process from outside it. An empty log means *muted*, never *clean*.
+- **A Debug build is silent too, until it is asked.** The core calls
+  `QLoggingCategory::setFilterRules("42hz.debug=false")` at the top of `main()`,
+  after Qt has already read `QT_LOGGING_RULES`, so neither that environment
+  variable nor a Debug build can turn the category back on. `--debug` is the
+  only switch that works.
+  Where its output lands is not reliably the place you redirected it: runs whose
+  stderr was pointed at a file have been observed writing nothing to that file
+  while `journalctl` carried the whole log, and one detached run produced
+  neither. **Check `journalctl` before concluding a build is mute**, and treat an
+  empty redirect file as no evidence at all. The routing has not been pinned
+  down; when the log matters, launch from a terminal, where it is dependable.
+
 - **A node name may not begin with a digit.** The core resolves a client's `target.object` by attempting a numeric parse first, and its `str_to_num` helper accepts a partial `std::from_chars` result, so a leading-digit name is misread as a serial and the stream is silently dropped from the model while remaining audible. Handled in the patch inventory for `target.object`; the shared helper is deliberately left lenient. More generally, a rename is not cosmetic when the new name has a different *shape* — leading digits, length, character class — from the old one.
 
 Measured coupling and the patch inventory are recorded in `docs/spike-01-frontend-coupling.md`; first execution of the derived core in `docs/spike-02-first-run.md`; identity reassignment in `docs/spike-03-identity.md`.
@@ -190,6 +202,7 @@ by a live capability are advertised in the interface.
 | key | action |
 |---|---|
 | `s` | show or hide the mixer |
+| `b` | global processing bypass |
 | `f`, `1`, `2` | chrome mode |
 | `-` / `+`, `[` / `]` | bar density |
 | `Escape` | dismiss transient controls; never stops audio |
@@ -222,6 +235,22 @@ a stream's link is undone as soon as the stream is seen again — and for a clie
 that pins its own target it never takes effect at all. The blocklist entry is
 what makes the choice durable; the link change is what makes it happen now.
 Both, always, in that order.
+
+**The core already performs both, and the frontend must not.** Writing
+`isBlocklisted` on a row of `ModelNodes.outputStreams` reaches `Nodes::setData`,
+which chooses the blocklist key, honours `blocklistUsesMediaName`, and writes
+the setting; the `blocklistChanged` handler then reconciles every row's
+`is_blocklisted` and links or unlinks the stream. A frontend that instead
+composes the blocklist entry itself is holding a second copy of that policy and
+will choose a key the core does not match on — the core tests the node name, the
+application id and the process binary, so an entry written under one of them
+reads as absent under another, and the next toggle appends a duplicate rather
+than clearing the original.
+
+A stream whose client pins its own target — `pw-play --target=…` does — stays
+where it is when it is bypassed, because the link change is metadata-only. It is
+still refused capture the next time it appears. This is a limitation of the
+mechanism, not of the control.
 
 - keep input and output processing pipelines separate;
 - distinguish virtual processing nodes from effective physical endpoints;
@@ -297,6 +326,15 @@ The application should recover from PipeWire restarts and device churn without a
 
 ## Command surface
 
+Not yet designed. The derived core carries upstream's `QCommandLineParser`
+surface — quit, reset, hide-window, global bypass and its toggle, preset load
+and query, service mode, and `--debug` — renamed to `42hz` but otherwise
+inherited. Several of those options name features 42Hz has not committed to, so
+this section stays empty of promises until milestone 5 settles which of them
+42Hz owns.
+
+One of them is load-bearing for development now: **`--debug` is the only way to
+make the core say anything**, for the reason recorded under *Upstream baseline*.
 
 ## Packaging and upstream strategy
 

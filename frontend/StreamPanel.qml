@@ -61,38 +61,31 @@ Item {
         PwManager.setNodeVolume(row.serial, row.nVolumeChannels, Math.max(0, Math.min(1, row.volume + delta)));
     }
 
-    // Processing inclusion is two things at once, and doing only one of them
-    // looks like a control that does not work.
+    // Processing inclusion is one write, and choosing the blocklist key here
+    // was wrong twice over.
     //
-    // The link change is immediate but not durable: the core links every new
-    // output stream to its sink unless the node is blocklisted, so a bare
-    // disconnect is undone the moment the stream is seen again -- and for a
-    // client that pins its own target it never takes effect at all. The
-    // blocklist is what makes the choice stick; the link change is what makes
-    // it happen now.
+    // The core matches an entry against the node name, the application id,
+    // the process binary, and -- when blocklistUsesMediaName is set --
+    // "name:media_name". Pushing row.name alone meant a stream blocked under
+    // any other key still read as included, and toggling it appended a second
+    // entry rather than clearing the first. Separately, a settings write from
+    // here never moved the model's own is_blocklisted, which is what the node
+    // manager consults before relinking, so the choice reached the graph only
+    // by way of the link change and did not survive the stream being seen
+    // again.
+    //
+    // Nodes::setData owns all of that: it picks the key the core will match,
+    // honours blocklistUsesMediaName, and its blocklistChanged handler
+    // reconciles every row and relinks the stream. The panel holds no policy.
     function toggleProcessing() {
         const row = list.currentItem;
+
+        // An empty name would be appended to the blocklist as "", which then
+        // matches every unnamed node.
         if (row === null || row.name.length === 0)
             return;
 
-        const blocked = DbStreamOutputs.blocklist.slice();
-        const at = blocked.indexOf(row.name);
-
-        if (row.connected) {
-            if (at === -1)
-                blocked.push(row.name);
-
-            DbStreamOutputs.blocklist = blocked;
-
-            PwManager.disconnectStream(row.id);
-        } else {
-            if (at !== -1)
-                blocked.splice(at, 1);
-
-            DbStreamOutputs.blocklist = blocked;
-
-            PwManager.connectStreamOutput(row.id);
-        }
+        row.model.isBlocklisted = !row.isBlocklisted;
     }
 
     ListView {
@@ -114,9 +107,13 @@ Item {
             required property bool mute
             required property bool connected
             required property int serial
-            required property int id
             required property int nVolumeChannels
             required property string name
+            required property bool isBlocklisted
+
+            // The whole model row, so the processing toggle can write back
+            // through Nodes::setData rather than restating its policy here.
+            required property var model
 
             readonly property bool selected: ListView.isCurrentItem
 

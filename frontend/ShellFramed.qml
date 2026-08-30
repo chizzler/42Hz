@@ -30,11 +30,18 @@ Item {
         anchors.leftMargin: 16
         anchors.rightMargin: 16
 
-        title: "42Hz"
+        // Top left is identity and state, and global bypass is state: with the
+        // pipelines in passthrough the spectrum looks exactly as it does with
+        // them working, so nothing else in the window would say so.
+        //
+        // Bare mode draws none of this, by construction. That is the mode's
+        // whole commitment, and the toast on the keypress is what reports it
+        // there.
+        title: DbMain.bypass ? "42Hz  ·  bypassed" : "42Hz"
 
         // Only bindings that exist are advertised, and the legend follows what
         // the keyboard will actually do next.
-        legend: shell.streamsVisible ? "[m]ute   [p]rocess   ←/→ volume   [Esc] close" : "[s]treams   [f]rame   [-/+] density   [q]uit"
+        legend: shell.streamsVisible ? "[m]ute   [p]rocess   ←/→ volume   [Esc] close" : "[s]treams   [b]ypass   [f]rame   [-/+] density   [q]uit"
 
         Surface {
             id: surface
