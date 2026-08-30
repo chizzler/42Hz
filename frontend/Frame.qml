@@ -25,9 +25,9 @@ Item {
     property string title: ""
     property string legend: ""
 
-    // Line weight tracks the type scale, the way foot derives thickness from
-    // cell size, so the frame stays proportionate when text size changes.
-    property real thickness: Math.max(1, Math.round(Theme.fontBaseSize * 0.09))
+    // 42Hz's shared line weight, so a frame and a divider cannot end up
+    // different thicknesses.
+    property real thickness: Theme.lineThickness
     property real radius: 4
 
     // Where the labels sit along their edge, and how much line they displace.

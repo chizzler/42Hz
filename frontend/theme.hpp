@@ -21,6 +21,8 @@
 #pragma once
 
 #include <QColor>
+#include <QtGlobal>
+#include <algorithm>
 #include <QFileSystemWatcher>
 #include <QHash>
 #include <QObject>
@@ -79,6 +81,11 @@ class Theme : public QObject {
   Q_PROPERTY(QString fontFamily READ fontFamily NOTIFY changed)
   Q_PROPERTY(int fontBaseSize READ fontBaseSize NOTIFY changed)
 
+  // 42Hz's one line weight, derived from the type scale the way foot derives
+  // rule thickness from cell size. Every drawn line reads this, so a frame and
+  // a divider cannot drift to different weights.
+  Q_PROPERTY(int lineThickness READ lineThickness NOTIFY changed)
+
  public:
   explicit Theme(QObject* parent = nullptr);
 
@@ -116,6 +123,8 @@ class Theme : public QObject {
 
   [[nodiscard]] QString fontFamily() const { return m_fontFamily; }
   [[nodiscard]] int fontBaseSize() const { return m_fontBaseSize; }
+
+  [[nodiscard]] int lineThickness() const { return std::max(1, qRound(m_fontBaseSize * 0.09)); }
 
   // Apply an alpha to a token. QML has Qt.alpha() only from 6.x in some
   // builds; this keeps call sites explicit and testable.

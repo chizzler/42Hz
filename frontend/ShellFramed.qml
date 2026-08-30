@@ -14,8 +14,12 @@ Item {
 
     property var points: []
     property int barWidth: 10
-    property var stateReport: ({})
     property bool streamsVisible: false
+
+    property bool audioServiceReady: true
+    property bool processingReady: true
+    property bool spectrumFlowing: true
+    property int streamCount: 1
 
     readonly property alias streamPanel: surface.streamPanel
 
@@ -39,8 +43,11 @@ Item {
 
             points: shell.points
             barWidth: shell.barWidth
-            stateReport: shell.stateReport
             streamsVisible: shell.streamsVisible
+            audioServiceReady: shell.audioServiceReady
+            processingReady: shell.processingReady
+            spectrumFlowing: shell.spectrumFlowing
+            streamCount: shell.streamCount
         }
     }
 }

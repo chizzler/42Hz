@@ -36,7 +36,6 @@ qt_add_qml_module(hz_frontend
         StateReport.qml
         StreamPanel.qml
         Surface.qml
-        ShellBare.qml
         ShellFramed.qml
 )
 

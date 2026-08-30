@@ -36,11 +36,20 @@ Window {
         }
     }
 
+    // Asking 60 times a second for a frame that cannot exist costs 60 round
+    // trips into the core, each returning an empty list that still churns
+    // every binding downstream of `points`. When there is no stream there is
+    // nothing to draw, so the request stops and the last frame is cleared.
     Timer {
         interval: 1000 / 60
-        running: true
+        running: root.audioServiceReady && root.streamCount > 0
         repeat: true
         onTriggered: StreamOutputEffects.requestSpectrumData()
+
+        onRunningChanged: {
+            if (!running)
+                root.points = [];
+        }
     }
 
     // ---- runtime state -----------------------------------------------------
@@ -64,7 +73,7 @@ Window {
 
     Timer {
         interval: 1000
-        running: true
+        running: root.audioServiceReady
         repeat: true
         triggeredOnStart: true
         onTriggered: root.pipelineRate = StreamOutputEffects.getPipeLineRate()
@@ -76,50 +85,22 @@ Window {
 
     readonly property bool processingReady: root.pipelineRate > 0
 
-    // Distinct causes, distinct reports. The failure this exists to prevent is
-    // a blank window that could equally mean silence or a dead process.
-    readonly property var stateReport: {
-        if (!root.audioServiceReady)
-            return {
-                "title": "no audio service",
-                "detail": "PipeWire is not reachable",
-                "error": true
-            };
+    readonly property int streamCount: outputStreams.count
 
-        if (outputStreams.count === 0)
-            return {
-                "title": "no audio",
-                "detail": "nothing is playing through 42Hz",
-                "error": false
-            };
-
-        if (!root.processingReady)
-            return {
-                "title": "processing stopped",
-                "detail": "the output pipeline is not running",
-                "error": true
-            };
-
-        if (root.points.length === 0)
-            return {
-                "title": "no spectrum",
-                "detail": "audio is playing but no frames are arriving",
-                "error": true
-            };
-
-        return {
-            "title": "",
-            "detail": "",
-            "error": false
-        };
-    }
+    // Scalars rather than one object: `points` is replaced on every frame, so
+    // an object binding that reads it would be rebuilt 60 times a second and
+    // notify downstream every time, having produced the same report. A bool
+    // suppresses its own change signal when the value has not moved.
+    readonly property bool spectrumFlowing: root.points.length > 0
 
     // ---- chrome ------------------------------------------------------------
 
+    // Bare mode is the surface with nothing around it, so it is loaded
+    // directly rather than through a wrapper that only forwards properties.
     readonly property var shells: [
         {
             "name": "bare",
-            "file": "ShellBare.qml"
+            "file": "Surface.qml"
         },
         {
             "name": "framed",
@@ -146,8 +127,11 @@ Window {
         onLoaded: {
             item.points = Qt.binding(() => root.points);
             item.barWidth = Qt.binding(() => root.barWidth);
-            item.stateReport = Qt.binding(() => root.stateReport);
             item.streamsVisible = Qt.binding(() => root.streamsVisible);
+            item.audioServiceReady = Qt.binding(() => root.audioServiceReady);
+            item.processingReady = Qt.binding(() => root.processingReady);
+            item.spectrumFlowing = Qt.binding(() => root.spectrumFlowing);
+            item.streamCount = Qt.binding(() => root.streamCount);
         }
     }
 
@@ -220,10 +204,8 @@ Window {
                 keyLayer.setShell((root.shellIndex + 1) % root.shells.length);
                 break;
             case Qt.Key_1:
-                keyLayer.setShell(0);
-                break;
             case Qt.Key_2:
-                keyLayer.setShell(1);
+                keyLayer.setShell(Math.min(root.shells.length - 1, event.key - Qt.Key_1));
                 break;
             case Qt.Key_Minus:
             case Qt.Key_BracketLeft:

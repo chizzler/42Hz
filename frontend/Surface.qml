@@ -12,14 +12,21 @@ Item {
 
     property var points: []
     property int barWidth: 10
-    property var stateReport: ({})
     property bool streamsVisible: false
+
+    // Capability state, forwarded rather than interpreted. What each
+    // combination means to a reader is StateReport's business.
+    property bool audioServiceReady: true
+    property bool processingReady: true
+    property bool spectrumFlowing: true
+    property int streamCount: 1
 
     readonly property alias streamPanel: panel
 
-    // The mixer takes the room it needs and no more, up to half the surface.
-    // Below that the spectrum would stop being the resting surface.
-    readonly property real panelHeight: Math.min(surface.height * 0.5, Math.max(panel.rowHeight, panel.count * panel.rowHeight) + divider.height + Math.round(Theme.fontBaseSize * 0.8))
+    // One gutter, stated once. It separates the spectrum from the divider and
+    // the divider from the mixer, and the panel height is measured against it,
+    // so three sites restating it is three chances to drift half a gutter.
+    readonly property real gutter: Math.round(Theme.fontBaseSize * 0.5)
 
     Spectrum {
         id: spectrum
@@ -28,7 +35,7 @@ Item {
         anchors.right: parent.right
         anchors.top: parent.top
         anchors.bottom: surface.streamsVisible ? divider.top : parent.bottom
-        anchors.bottomMargin: surface.streamsVisible ? Math.round(Theme.fontBaseSize * 0.5) : 0
+        anchors.bottomMargin: surface.streamsVisible ? surface.gutter : 0
 
         points: surface.points
         barWidth: surface.barWidth
@@ -38,9 +45,10 @@ Item {
     StateReport {
         anchors.fill: spectrum
 
-        title: surface.stateReport.title ?? ""
-        detail: surface.stateReport.detail ?? ""
-        isError: surface.stateReport.error ?? false
+        audioServiceReady: surface.audioServiceReady
+        processingReady: surface.processingReady
+        spectrumFlowing: surface.spectrumFlowing
+        streamCount: surface.streamCount
     }
 
     Rectangle {
@@ -49,13 +57,15 @@ Item {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: panel.top
-        anchors.bottomMargin: Math.round(Theme.fontBaseSize * 0.5)
+        anchors.bottomMargin: surface.gutter
 
-        height: Math.max(1, Math.round(Theme.fontBaseSize * 0.09))
-        color: Theme.withAlpha(Theme.foreground, 0.2)
+        height: Theme.lineThickness
+        color: Theme.withAlpha(Theme.foreground, Theme.controlBorderAlpha)
         visible: surface.streamsVisible
     }
 
+    // The mixer takes the room it needs and no more, up to half the surface.
+    // Below that the spectrum would stop being the resting surface.
     StreamPanel {
         id: panel
 
@@ -63,7 +73,7 @@ Item {
         anchors.right: parent.right
         anchors.bottom: parent.bottom
 
-        height: surface.streamsVisible ? surface.panelHeight - divider.height - Math.round(Theme.fontBaseSize * 0.5) : 0
+        height: surface.streamsVisible ? Math.min(surface.height * 0.5 - divider.height - surface.gutter, Math.max(1, panel.count) * panel.rowHeight) : 0
         visible: surface.streamsVisible
     }
 }

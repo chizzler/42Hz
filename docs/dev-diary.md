@@ -22,6 +22,103 @@ happens — this remains the account of record. Detailed evidence lives in
 
 ---
 
+## 2026-08-30 (night) — Cleanup pass over the milestone-2/3 frontend
+
+**Commit:** `PENDING`
+
+A quality review of the QML added over the day, on four angles at once: reuse,
+simplification, efficiency, altitude. Findings that reached the same conclusion
+from more than one direction were the ones worth acting on.
+
+### The report was being rebuilt sixty times a second
+
+`stateReport` was a `var` holding a JS object, and one of its branches read
+`points.length`. `points` is replaced on every frame, so the binding re-ran at
+60 Hz — and a `var` has no value equality, so it notified downstream every time
+having produced an identical report, through two shells into three text
+bindings.
+
+Now four scalars — `audioServiceReady`, `processingReady`, `spectrumFlowing`,
+`streamCount`. A `bool` suppresses its own change signal when the value has not
+moved, so the chain goes quiet.
+
+The wording moved with it. The window was authoring user-facing copy
+("PipeWire is not reachable") and shipping it through an untyped dict with
+`?? ""` guards at the far end; `StateReport` was a two-line text box. It now
+takes capability booleans and owns the mapping to title, detail and severity —
+which is the whole job of a component called StateReport. The empty mixer uses
+it too, instead of its own hand-styled centred label.
+
+### Asking for frames that cannot exist
+
+The 60 Hz `requestSpectrumData()` timer ran unconditionally: sixty round trips
+per second into the core while nothing was playing, each returning an empty
+list that still churned every binding behind it. It is now gated on the state
+the same session had just added the means to detect, and clears the last frame
+when it stops.
+
+### One line weight, one gutter
+
+`Theme` gained `lineThickness`, derived from the type scale. `Frame` and the
+mixer divider were computing the identical expression independently, which is
+two definitions of 42Hz's single line weight and a frame that could thicken
+while a divider did not. `Surface` similarly stated its gutter three times and
+then subtracted it back off in a fourth place; it is one `readonly property`
+now.
+
+The theme's `[controls]` alphas — read since the theme adapter landed, and
+noted then as "the mixer in milestone 3 needs them" — were still unused, with
+the mixer inventing 0.12 and 0.2 instead. The divider and the meter track now
+read `controlBorderAlpha` and `controlFillAlpha`, so `shell.toml`'s control
+section is finally live.
+
+*Rejected on the way:* expressing the remaining literals as arithmetic on those
+tokens (`controlFillAlpha + 0.5`). An arbitrary offset applied to a themeable
+value is less honest than the plain number it replaced — it looks derived and
+is not. The dim row name is `foregroundDim`, which actually means that.
+
+### ShellBare was a wrapper around nothing
+
+It declared four properties, forwarded each verbatim to `Surface`, re-exported
+one alias, and added nothing. Bare mode *is* the surface, so the loader points
+at `Surface.qml` and the file is gone — one fewer copy of the property list to
+keep in sync, and one fewer hop in the alias chain.
+
+### Not fixed, and the most important thing found
+
+**The blocklist key is chosen in the wrong place, and chosen too narrowly.**
+`toggleProcessing()` pushes `row.name`, but the core matches a blocklist entry
+against `application_id` *or* `app_process_binary` *or* `name`
+(`pw_node_manager.cpp:234-243`), plus `name:media_name` when
+`blocklistUsesMediaName()`. So a stream blocklisted under one key reads
+"bypassed" in the mixer, and toggling it appends a second entry under a
+different key rather than clearing the first.
+
+The shallow fix is to widen the match in QML, which would put a second copy of
+the core's policy in the frontend. The right fix is a facade command —
+`setStreamProcessed(id, bool)` on the core, added through `reduce-deps.py` so
+it stays in the patch inventory — with the panel holding no policy at all. That
+is a change to the derived core and wants its own session.
+
+Also left alone: the keymap is a string literal in `ShellFramed`'s legend while
+the bindings live in `Main`, so a key change can leave the legend lying; and
+`project.md`'s "only bindings backed by a live capability are advertised" is
+unimplementable there, because the shell cannot see capability state. The fix
+is to publish the binding table as data that both the handler and the legend
+read. Noted, not done.
+
+`SpectrumCells.qml` is still built and still referenced by nothing. It was kept
+deliberately when the harness was dismantled, so it stays until it is wanted or
+declared dead.
+
+### Verified
+
+Debug build, screenshots: framed and bare both load; the mixer opens in both;
+divider, meter track and selected row render on the new tokens; the empty
+mixer reports through `StateReport`; a live stream renders its row unchanged.
+
+---
+
 ## 2026-08-30 (evening) — The application mixer
 
 **Commit:** `609bac7`

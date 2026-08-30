@@ -5,21 +5,71 @@ import ee.ui
 //
 // An empty window is the one thing this must never be: silence, a dead
 // PipeWire, a stopped pipeline and a crashed application all look identical
-// when nothing is drawn. Each of those is reported here, in the middle of the
-// space the signal would otherwise occupy, and reported differently.
+// when nothing is drawn. Each is reported here, in the middle of the space the
+// signal would otherwise occupy, and reported differently.
 //
-// It is deliberately quiet -- muted, unboxed, one line and a qualifier. This
-// is a resting state, not an alert.
+// This owns both the diagnosis and its wording. It is handed capability
+// booleans, not a message -- so adding a state means editing the component
+// whose job is states, and the window never carries user-facing copy.
+//
+// It is deliberately quiet: muted, unboxed, one line and a qualifier. This is
+// a resting state, not an alert.
 Item {
     id: report
 
-    property string title: ""
-    property string detail: ""
+    property bool audioServiceReady: true
+    property bool processingReady: true
+    property bool spectrumFlowing: true
+    property int streamCount: 1
 
-    // Errors read in the theme's error colour; an ordinary idle state does not.
-    property bool isError: false
+    // The empty mixer says one thing and means it, so it borrows the same
+    // presentation with the diagnosis switched off.
+    property string overrideTitle: ""
 
-    visible: report.title.length > 0
+    readonly property var state: {
+        if (report.overrideTitle.length > 0)
+            return {
+                "title": report.overrideTitle,
+                "detail": "",
+                "error": false
+            };
+
+        if (!report.audioServiceReady)
+            return {
+                "title": "no audio service",
+                "detail": "PipeWire is not reachable",
+                "error": true
+            };
+
+        if (report.streamCount === 0)
+            return {
+                "title": "no audio",
+                "detail": "nothing is playing through 42Hz",
+                "error": false
+            };
+
+        if (!report.processingReady)
+            return {
+                "title": "processing stopped",
+                "detail": "the output pipeline is not running",
+                "error": true
+            };
+
+        if (!report.spectrumFlowing)
+            return {
+                "title": "no spectrum",
+                "detail": "audio is playing but no frames are arriving",
+                "error": true
+            };
+
+        return {
+            "title": "",
+            "detail": "",
+            "error": false
+        };
+    }
+
+    visible: report.state.title.length > 0
 
     Column {
         anchors.centerIn: parent
@@ -29,8 +79,8 @@ Item {
         Text {
             anchors.horizontalCenter: parent.horizontalCenter
 
-            text: report.title
-            color: report.isError ? Theme.error : Theme.foreground
+            text: report.state.title
+            color: report.state.error ? Theme.error : Theme.foreground
             font.family: Theme.fontFamily
             font.pixelSize: Theme.fontBaseSize
         }
@@ -38,11 +88,11 @@ Item {
         Text {
             anchors.horizontalCenter: parent.horizontalCenter
 
-            text: report.detail
+            text: report.state.detail
             color: Theme.muted
             font.family: Theme.fontFamily
             font.pixelSize: Theme.fontBaseSize
-            visible: report.detail.length > 0
+            visible: text.length > 0
         }
     }
 }

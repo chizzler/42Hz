@@ -15,10 +15,27 @@ Item {
     id: panel
 
     readonly property int count: list.count
-    readonly property var current: list.currentItem
 
-    // Rows are sized from the type scale, so the panel follows text scaling.
+    // Everything below is the same for every row, so it is derived once here
+    // rather than once per delegate -- including the two theme colours, which
+    // otherwise cross into C++ three times per row on every selection move.
     readonly property real rowHeight: Math.round(Theme.fontBaseSize * 1.9)
+    readonly property real gap: Math.round(Theme.fontBaseSize * 0.8)
+    readonly property real markerWidth: Math.round(Theme.fontBaseSize)
+    readonly property real nameWidth: Math.round(panel.width * 0.32)
+    readonly property real meterWidth: Math.round(panel.width * 0.22)
+    readonly property real meterHeight: Math.max(2, Math.round(Theme.fontBaseSize * 0.28))
+    readonly property real readingWidth: Math.round(Theme.fontBaseSize * 2.6)
+    readonly property real muteWidth: Math.round(Theme.fontBaseSize * 3.4)
+    readonly property real processWidth: Math.round(Theme.fontBaseSize * 4.6)
+
+    // The empty half of a meter is control chrome, so it takes the theme's
+    // own control fill rather than a number invented here.
+    readonly property color meterTrack: Theme.withAlpha(Theme.foreground, Theme.controlFillAlpha)
+
+    // An unselected row is dimmer, not differently coloured.
+    readonly property color idleName: Theme.foregroundDim
+    readonly property color idleMeter: Theme.withAlpha(Theme.accent, 0.65)
 
     function moveSelection(delta) {
         if (list.count === 0)
@@ -33,15 +50,15 @@ Item {
         if (row === null)
             return;
 
-        PwManager.setNodeMute(row.serial, !row.muted);
+        PwManager.setNodeMute(row.serial, !row.mute);
     }
 
     function nudgeVolume(delta) {
         const row = list.currentItem;
-        if (row === null || row.volumeChannels === 0)
+        if (row === null || row.nVolumeChannels === 0)
             return;
 
-        PwManager.setNodeVolume(row.serial, row.volumeChannels, Math.max(0, Math.min(1, row.volume + delta)));
+        PwManager.setNodeVolume(row.serial, row.nVolumeChannels, Math.max(0, Math.min(1, row.volume + delta)));
     }
 
     // Processing inclusion is two things at once, and doing only one of them
@@ -55,26 +72,26 @@ Item {
     // it happen now.
     function toggleProcessing() {
         const row = list.currentItem;
-        if (row === null || row.nodeName.length === 0)
+        if (row === null || row.name.length === 0)
             return;
 
         const blocked = DbStreamOutputs.blocklist.slice();
-        const at = blocked.indexOf(row.nodeName);
+        const at = blocked.indexOf(row.name);
 
-        if (row.processed) {
+        if (row.connected) {
             if (at === -1)
-                blocked.push(row.nodeName);
+                blocked.push(row.name);
 
             DbStreamOutputs.blocklist = blocked;
 
-            PwManager.disconnectStream(row.nodeId);
+            PwManager.disconnectStream(row.id);
         } else {
             if (at !== -1)
                 blocked.splice(at, 1);
 
             DbStreamOutputs.blocklist = blocked;
 
-            PwManager.connectStreamOutput(row.nodeId);
+            PwManager.connectStreamOutput(row.id);
         }
     }
 
@@ -91,7 +108,6 @@ Item {
         delegate: Item {
             id: row
 
-            required property int index
             required property string appName
             required property string mediaName
             required property real volume
@@ -101,14 +117,6 @@ Item {
             required property int id
             required property int nVolumeChannels
             required property string name
-
-            // The delegate's own names, so callers are not writing model role
-            // spellings into control logic.
-            readonly property bool muted: row.mute
-            readonly property bool processed: row.connected
-            readonly property int nodeId: row.id
-            readonly property int volumeChannels: row.nVolumeChannels
-            readonly property string nodeName: row.name
 
             readonly property bool selected: ListView.isCurrentItem
 
@@ -121,7 +129,7 @@ Item {
                 anchors.left: parent.left
                 anchors.verticalCenter: parent.verticalCenter
 
-                width: Math.round(Theme.fontBaseSize)
+                width: panel.markerWidth
                 text: row.selected ? "›" : ""
                 color: Theme.accent
                 font.family: Theme.fontFamily
@@ -134,10 +142,10 @@ Item {
                 anchors.left: marker.right
                 anchors.verticalCenter: parent.verticalCenter
 
-                width: Math.round(parent.width * 0.32)
+                width: panel.nameWidth
                 elide: Text.ElideRight
                 text: row.appName.length > 0 ? row.appName : "unnamed stream"
-                color: row.selected ? Theme.foreground : Theme.withAlpha(Theme.foreground, 0.8)
+                color: row.selected ? Theme.foreground : panel.idleName
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.fontBaseSize
             }
@@ -145,7 +153,7 @@ Item {
             Text {
                 anchors.left: name.right
                 anchors.right: meter.left
-                anchors.rightMargin: Theme.fontBaseSize
+                anchors.rightMargin: panel.gap
                 anchors.verticalCenter: parent.verticalCenter
 
                 elide: Text.ElideRight
@@ -161,21 +169,21 @@ Item {
                 id: meter
 
                 anchors.right: reading.left
-                anchors.rightMargin: Math.round(Theme.fontBaseSize * 0.6)
+                anchors.rightMargin: panel.gap
                 anchors.verticalCenter: parent.verticalCenter
 
-                width: Math.round(parent.width * 0.22)
-                height: Math.max(2, Math.round(Theme.fontBaseSize * 0.28))
+                width: panel.meterWidth
+                height: panel.meterHeight
 
                 Rectangle {
                     anchors.fill: parent
-                    color: Theme.withAlpha(Theme.foreground, 0.12)
+                    color: panel.meterTrack
                 }
 
                 Rectangle {
                     width: parent.width * Math.max(0, Math.min(1, row.volume))
                     height: parent.height
-                    color: row.muted ? Theme.muted : (row.selected ? Theme.accent : Theme.withAlpha(Theme.accent, 0.65))
+                    color: row.mute ? Theme.muted : (row.selected ? Theme.accent : panel.idleMeter)
                 }
             }
 
@@ -183,13 +191,13 @@ Item {
                 id: reading
 
                 anchors.right: muteFlag.left
-                anchors.rightMargin: Math.round(Theme.fontBaseSize * 0.8)
+                anchors.rightMargin: panel.gap
                 anchors.verticalCenter: parent.verticalCenter
 
                 horizontalAlignment: Text.AlignRight
-                width: Math.round(Theme.fontBaseSize * 2.6)
+                width: panel.readingWidth
                 text: Math.round(row.volume * 100) + "%"
-                color: row.muted ? Theme.muted : Theme.foreground
+                color: row.mute ? Theme.muted : Theme.foreground
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.fontBaseSize
             }
@@ -200,12 +208,12 @@ Item {
                 id: muteFlag
 
                 anchors.right: processFlag.left
-                anchors.rightMargin: Math.round(Theme.fontBaseSize * 0.8)
+                anchors.rightMargin: panel.gap
                 anchors.verticalCenter: parent.verticalCenter
 
                 horizontalAlignment: Text.AlignRight
-                width: Math.round(Theme.fontBaseSize * 3.4)
-                text: row.muted ? "muted" : ""
+                width: panel.muteWidth
+                text: row.mute ? "muted" : ""
                 color: Theme.error
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.fontBaseSize
@@ -218,8 +226,8 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
 
                 horizontalAlignment: Text.AlignRight
-                width: Math.round(Theme.fontBaseSize * 4.6)
-                text: row.processed ? "" : "bypassed"
+                width: panel.processWidth
+                text: row.connected ? "" : "bypassed"
                 color: Theme.muted
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.fontBaseSize
@@ -227,15 +235,11 @@ Item {
         }
     }
 
-    // The mixer is the one surface where "nothing here" is genuinely the whole
-    // story, so it says so rather than showing an empty box.
-    Text {
-        anchors.centerIn: parent
+    // "Nothing here" is a state, and there is already a component for saying
+    // one quietly in the middle of the space it would have filled.
+    StateReport {
+        anchors.fill: parent
 
-        text: "no application streams"
-        color: Theme.muted
-        font.family: Theme.fontFamily
-        font.pixelSize: Theme.fontBaseSize
-        visible: list.count === 0
+        overrideTitle: list.count === 0 ? "no application streams" : ""
     }
 }
