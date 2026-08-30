@@ -24,7 +24,7 @@ happens — this remains the account of record. Detailed evidence lives in
 
 ## 2026-08-30 (night, sixth pass) — Controls on the line, and a legend that ranks
 
-**Commit:** _(backfilled)_
+**Commit:** `d797903`
 
 Three complaints, one shape: the window treated everything as equally important
 and drew its announcements wherever there was room.
