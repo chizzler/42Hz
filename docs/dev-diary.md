@@ -24,7 +24,7 @@ happens — this remains the account of record. Detailed evidence lives in
 
 ## 2026-08-30 (night, fifth pass) — Refusing the loop
 
-**Commit:** _(backfilled)_
+**Commit:** `0bd4ec2`
 
 The defect the mixer sweep found, fixed. `pactl load-module module-loopback
 source=42hz_sink.monitor` no longer closes a loop through the processing sink.
