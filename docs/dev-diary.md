@@ -24,7 +24,7 @@ happens — this remains the account of record. Detailed evidence lives in
 
 ## 2026-08-30 (night, seventh pass) — Teaching the keyboard
 
-**Commit:** _(backfilled)_
+**Commit:** `c923c48`
 
 The chrome now points at its own keys, and the legend is down to what the window
 is actually for.
