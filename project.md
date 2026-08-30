@@ -324,6 +324,20 @@ parent.
 Every action is reachable by key at every window size, and only bindings backed
 by a live capability are advertised in the interface.
 
+**A capability the binding does not have is a different case from a window too
+narrow to mention it.** Size only decides what is *said*; the key still works.
+An absent capability means there is nothing to act on, and there the key answers
+instead — it reports why, in the same place a mode change is reported, and does
+not touch the graph. A key that silently does nothing and a key that quietly
+does damage are both worse than a key that says what is missing.
+
+Global bypass is the standing example. It is backed not by the pipeline running
+but by the output chain *containing something to switch off*, and until the
+equalizer is in that chain there is nothing. The core implements bypass by
+substituting an empty plugin list, so with the list already empty the graph it
+rebuilds is identical to the one it tore down — an interruption, and a window
+announcing a state it is not in.
+
 The bindings are published as data that the key handler and the interface both
 read. A binding carries its key, its label, the priority it is given up at when
 the legend must shorten, and whether a live capability backs it. Advertising is
@@ -334,7 +348,7 @@ than one that stops being mentioned.
 | key | action |
 |---|---|
 | `s` | show or hide the mixer |
-| `b` | global processing bypass |
+| `b` | global processing bypass — advertised only while the output chain holds an effect |
 | `f`, `1`, `2` | chrome mode |
 | `-` / `+`, `[` / `]` | bar density |
 | `Escape` | dismiss transient controls; never stops audio |

@@ -20,6 +20,7 @@ Item {
     property bool processingReady: true
     property bool spectrumFlowing: true
     property bool signalPresent: true
+    property bool effectsPresent: false
     property int streamCount: 1
 
     // The legend is handed down as data. See Main: the same table drives the
@@ -93,7 +94,11 @@ Item {
         // Bare mode draws none of this, by construction. That is the mode's
         // whole commitment, and the toast on the keypress is what reports it
         // there.
-        title: DbMain.bypass ? shell.bypassTitle : shell.idleTitle
+        // The setting can be true from a session that had effects, so the
+        // title asks whether anything is actually being bypassed rather than
+        // what the setting says. A window announcing a state it is not in is
+        // the same failure as a spectrum that always fills.
+        title: DbMain.bypass && shell.effectsPresent ? shell.bypassTitle : shell.idleTitle
 
         legendItems: shell.legendItems
 

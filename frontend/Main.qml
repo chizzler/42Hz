@@ -139,6 +139,19 @@ Window {
     // suppresses its own change signal when the value has not moved.
     readonly property bool spectrumFlowing: root.points.length > 0
 
+    // Whether there is anything for bypass to bypass.
+    //
+    // The spectrum and the level meter are linked into the output chain
+    // unconditionally; bypass substitutes an empty plugin list for
+    // DbStreamOutputs.plugins and nothing else. With that list empty, both
+    // branches are the same list, so the graph it rebuilds is identical to the
+    // one it tore down -- an interruption, a title claiming a state that does
+    // not exist, and no change to a single sample.
+    //
+    // This lights up on its own when milestone 4 puts the equalizer in the
+    // list, which is what makes it the right test rather than a hardcoded off.
+    readonly property bool effectsPresent: DbStreamOutputs.plugins.length > 0
+
     // ---- chrome ------------------------------------------------------------
 
     // Bare mode is the surface with nothing around it, so it is loaded
@@ -189,10 +202,14 @@ Window {
             item.signalPresent = Qt.binding(() => root.signalPresent);
             item.streamCount = Qt.binding(() => root.streamCount);
 
-            // Bare mode draws no legend and does not declare the property.
-            // Reading an absent one is undefined; writing it is an error.
+            // Bare mode draws no legend and no title, and declares neither
+            // property. Reading an absent one is undefined; writing it is an
+            // error.
             if (item.legendItems !== undefined)
                 item.legendItems = Qt.binding(() => root.legendItems);
+
+            if (item.effectsPresent !== undefined)
+                item.effectsPresent = Qt.binding(() => root.effectsPresent);
         }
     }
 
@@ -248,8 +265,23 @@ Window {
             "keys": [Qt.Key_B],
             "label": "[b]ypass",
             "priority": 90,
-            "advertised": root.processingReady,
+
+            // Gated on there being effects, not on the pipeline running.
+            // `project.md` asks that only bindings backed by a live capability
+            // be advertised, and the capability behind bypass is not "is the
+            // pipeline up" -- it is "is there anything in it to switch off".
+            "advertised": root.effectsPresent,
+
             "action": key => {
+                // Answering rather than acting. set_bypass() runs
+                // disconnect_filters() then connect_filters(), so toggling
+                // this with an empty chain rebuilds the whole output path,
+                // spectrum included, to arrive back where it started.
+                if (!root.effectsPresent) {
+                    root.showToast("no effects to bypass");
+                    return;
+                }
+
                 DbMain.bypass = !DbMain.bypass;
                 root.showToast(DbMain.bypass ? "bypassed" : "processing");
             }
