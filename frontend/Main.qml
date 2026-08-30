@@ -16,6 +16,11 @@ Window {
     // supplied via engine.setInitialProperties() in main.cpp
     property string applicationName: "42Hz"
     property string applicationId: "io.github.chizzler.42Hz"
+
+    // Nothing reads this yet, and it still has to exist: main.cpp injects it
+    // with the other two, and setInitialProperties() fails on a key the root
+    // object does not declare -- silently, in a Release build. Removing it is
+    // a change to the patch inventory, not to this file.
     property bool canUseSysTray: false
 
     width: 640
@@ -33,7 +38,37 @@ Window {
 
         function onNewSpectrumData(newData) {
             root.points = newData;
+
+            // The spectrum draws nothing below its floor, so a stream that is
+            // open and silent would leave an empty window -- the state
+            // `project.md` forbids, arrived at from a direction the capability
+            // booleans do not cover. What is watched is therefore the frame's
+            // peak, against the same floor the renderer uses, so the report
+            // appears exactly when there would be nothing left to draw.
+            let peak = -Infinity;
+            for (let i = 0; i < newData.length; i++) {
+                if (newData[i].y > peak)
+                    peak = newData[i].y;
+            }
+
+            if (peak > SpectrumScale.floorDb) {
+                root.signalPresent = true;
+                silenceHold.restart();
+            }
         }
+    }
+
+    // Held rather than instantaneous. Music has rests, tracks have gaps, and a
+    // report that blinks on every one of them is noise rather than
+    // information. Any frame above the floor clears it and starts the count
+    // again.
+    property bool signalPresent: false
+
+    Timer {
+        id: silenceHold
+
+        interval: 1500
+        onTriggered: root.signalPresent = false
     }
 
     // Asking 60 times a second for a frame that cannot exist costs 60 round
@@ -41,14 +76,21 @@ Window {
     // every binding downstream of `points`. When there is no stream there is
     // nothing to draw, so the request stops and the last frame is cleared.
     Timer {
-        interval: 1000 / 60
+        interval: 1000 / Math.max(1, DbSpectrum.spectrumFpsCap)
         running: root.audioServiceReady && root.streamCount > 0 && !root.tooSmall
         repeat: true
         onTriggered: StreamOutputEffects.requestSpectrumData()
 
         onRunningChanged: {
-            if (!running)
+            if (!running) {
                 root.points = [];
+
+                // Nothing is being asked for, so nothing can be reported about
+                // the signal. Leaving these set would have the window claim a
+                // silence it stopped listening for.
+                root.signalPresent = false;
+                silenceHold.stop();
+            }
         }
     }
 
@@ -83,7 +125,11 @@ Window {
     // server, so an empty string is the honest signal that there is none.
     readonly property bool audioServiceReady: PwManager.runtimeVersion.length > 0
 
-    readonly property bool processingReady: root.pipelineRate > 0
+    // The rate is polled, and the poll stops when the service goes away, so
+    // the last reading outlives the pipeline it measured. Naming the service
+    // here is what keeps `[b]ypass` from being advertised against a pipeline
+    // that is no longer there; the poll refreshes immediately if it returns.
+    readonly property bool processingReady: root.audioServiceReady && root.pipelineRate > 0
 
     readonly property int streamCount: outputStreams.count
 
@@ -140,6 +186,7 @@ Window {
             item.audioServiceReady = Qt.binding(() => root.audioServiceReady);
             item.processingReady = Qt.binding(() => root.processingReady);
             item.spectrumFlowing = Qt.binding(() => root.spectrumFlowing);
+            item.signalPresent = Qt.binding(() => root.signalPresent);
             item.streamCount = Qt.binding(() => root.streamCount);
 
             // Bare mode draws no legend and does not declare the property.

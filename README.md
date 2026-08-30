@@ -14,9 +14,13 @@ See [`project.md`](project.md) for design goals and milestones, and
 EasyEffects-derived core builds and runs under its own identity against the
 pinned upstream base, and is verified against real application streams, the EQ
 LV2 provider and its failure path, default-sink routing, forced termination, and
-a speaker-tuning filter-chain. Milestone 2 is built but not closed: its
-responsive behaviour across tiled, floating, narrow, wide and fullscreen
-geometries has not yet been verified.
+a speaker-tuning filter-chain. Milestone 2's responsive behaviour has been swept
+across tiled, floating, narrow, wide and fullscreen geometries and the defects
+it found are fixed; the milestone stays open on live theme adaptation, which is
+verifiable per-theme but has not been tested while switching under load.
+Milestone 3 is built rather than verified: the mixer runs, but the stream
+classes, device churn, virtual sinks and graph-failure recovery it names have
+not been exercised.
 
 42Hz's own frontend lives in [`frontend/`](frontend) and renders the live spectrum
 on the active Omarchy theme — palette, typography and spectrum ramp all resolved

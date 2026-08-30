@@ -22,6 +22,191 @@ happens — this remains the account of record. Detailed evidence lives in
 
 ---
 
+## 2026-08-30 (night, second pass) — A spectrum that tells the truth about level
+
+**Commit:** _(backfilled)_
+
+A code and status review turned up five things. The first was the interesting
+one, and it was not a layout bug or a theme bug: the spectrum had never been
+showing how loud anything was.
+
+### Every frame was rescaled to itself
+
+`Spectrum.qml` computed the minimum and maximum of each frame and normalised
+against them. The display therefore spanned full height at all times, whatever
+was playing. A whisper and a peak were pixel-identical; the tallest bar was
+always the tallest bar. For an application whose first principle is that the
+live signal is the resting surface, the resting surface never rested.
+
+It is a flattering bug, which is why it survived four sessions of looking
+directly at it. The picture is lively, it fills the window, and it moves
+convincingly with the music — it just is not a measurement of anything.
+
+Decided in favour of truth at a known cost: with absolute levels, the top of
+the colour ramp only appears when something is actually loud, so the palette
+work from the previous entry shows less of itself on quiet material. That was
+the explicit trade, and it is the right way round. A spectrum is an instrument
+before it is a decoration.
+
+### Where the window sits, and why those two numbers
+
+The core hands over dB referenced to full scale, clamped at -100 by
+`util::linear_to_db`. Rather than guess a range, the core's own arithmetic was
+reproduced offline — Hann window, `|X|/n_bands`, the compensating factor of two,
+the single-sided correction at the ends — and run over synthetic signals at
+known levels.
+
+Two findings set the anchors:
+
+- **A 0 dBFS signal reads -6 dB, not 0.** The core mixes to mono as
+  `0.5 * (L + R)` and the ×2 compensates the Hann window's coherent gain of
+  0.5, which leaves a half. So the ceiling is -6: a full-scale signal fills the
+  window exactly and nothing ever clips.
+- **-90 for the floor**, above the core's own -100 clamp so the clamp lands at
+  the bottom of the window rather than somewhere below it. Pink noise at
+  -60 dBFS RMS — quiet but real — still peaks near -87 per point and stays
+  visible.
+
+Between them, loud broadband material peaks around three-quarters height and
+sits around a third at the median, which is what a spectrum should look like.
+
+### The empty window from the fifth direction, closed
+
+The known open item — a live but silent stream drawing nothing and saying
+nothing — stopped being a separate problem and became the same one. With
+truthful levels a silent stream draws literally nothing, so it had to be named.
+`signalPresent` watches the frame *peak* against the renderer's own floor, so
+the report appears exactly when there would be nothing left to draw, which is
+the only threshold that cannot disagree with the picture.
+
+Held for 1500 ms rather than reported instantly. Music has rests and tracks have
+gaps, and a message that blinks on every one of them is noise. And it is not an
+error: a stream that is open and quiet is a normal thing for a stream to be, so
+it reads `silent`, not red.
+
+The floor is now a singleton (`SpectrumScale`) rather than a constant in the
+renderer, because two components with no parent/child relationship have to agree
+on it. Restating it in both was how they would come to disagree.
+
+### advanceWidth() was never following the font
+
+`Frame.qml` already carried a comment about this — "advanceWidth() is a call,
+not a property, and would not be tracked" — and the rest of the frontend did
+not. `StreamPanel`'s six measured column widths and `ShellFramed`'s floor called
+`advanceWidth()` with nothing else in the binding, so they captured no
+dependency and never re-ran. `omarchy display text size` moved the type and left
+the columns and the framed floor where they were, which is precisely the
+requirement `project.md` states they meet.
+
+The fix is the existing idiom, generalised, plus one correction to it: name
+`metrics.font` rather than `Theme.fontBaseSize`. Both are bindings on the same
+signal and their order is undefined, so reading the theme's key can measure
+against the font that has not been updated yet; reading the metrics object's own
+font reads what the change actually delivered. `Frame.qml` was changed to match.
+
+### Secondary text was outside the contrast guard
+
+`legibleOn()` was applied to three foreground levels and not to `muted` or
+`foregroundDim`, on the reasoning that it covered "text-bearing tokens". Between
+them those two carry the legend, the state report's qualifier, the media-name
+column and every unselected stream name.
+
+They could not simply be added, though: `legibleOn` replaces a failing colour
+with pure white or black, and doing that to `muted` would take the theme's hue
+out of exactly the places it is most visible. So a second tier — 3:1, the
+large-text ratio, reached by *lifting* the colour toward white or black and
+stopping at the first step that clears it.
+
+Measured across all 22 shipped themes: 31 of 44 role/theme pairs were below 3:1
+and are lifted, most by 5–25%, none replaced. `matte-black`'s muted was the worst
+at 1.48:1 (`#333333` on black, effectively unreadable) and becomes `#666666` at
+3.26:1. `retro-82` keeps its teal (`#2a6b78` → `#35727f`), `tokyo-night` its blue
+(`#565f89` → `#5e678f`). Thirteen pairs were already fine and are untouched.
+
+### One object was worse than six statements
+
+The six column widths were first gathered into a single `columns` object, on the
+reasoning that the dependency should be declared once rather than six times. It
+loaded, and the log said `Cannot read property 'marker' of undefined` four times.
+
+An object property is `undefined` until its own binding has run, and the widths
+reading it are not guaranteed to run second. The bindings do re-run once
+`columns` is assigned, so the window recovers and looks correct — which is
+exactly the shape of thing a Release build would never have mentioned. Six
+statements of the same guard, in the form the two contracting flags already
+used, have no first pass to get wrong.
+
+This is the third time this project has been caught by "it looks right, so it is
+right". It was found in the first thirty seconds of running the thing.
+
+### The rest
+
+`processingReady` now names `audioServiceReady` as well. The pipeline rate is
+polled and the poll stops when the service goes away, so the last reading
+outlived the pipeline it measured and `[b]ypass` stayed advertised against
+something that was no longer there.
+
+The spectrum request timer reads `DbSpectrum.spectrumFpsCap` instead of a
+hardcoded 60. `SpectrumCells.qml` is gone — built and referenced by nothing
+since the pixel renderer replaced it, and recoverable from history.
+
+**`canUseSysTray` was removed and put back.** The review called it dead: declared
+in `Main.qml`, read by nothing. It is not dead. `main.cpp` injects it through
+`setInitialProperties()`, which fails on a key the root object does not declare
+— and fails *silently* in a Release build, for the reason recorded under
+*Upstream baseline*. Removing it is a change to the patch inventory, not to a
+QML file. It carries a comment saying so now.
+
+### Verified
+
+Release build and `qmllint` clean, with no new warnings of any kind; the
+singleton resolves; the debug run logs nothing at all.
+
+**The level scale, against signals of known level.** Pink noise was generated at
+-8, -20, -35 and -50 dBFS RMS and played through the nested session
+(`.sweep/level/`). The four captures are four different pictures, which is the
+whole point — under the old code they would have been indistinguishable. -8
+fills roughly four fifths of the window and tapers with the pink tilt; -20 sits
+a little under that; -35 reaches about a third with the top octaves already at
+the floor; -50 is a low ridge across the bottom with gaps above 10 kHz. The
+measured prediction was three quarters at the peak for loud broadband material,
+and that is what came back.
+
+**`silent`, with a stream open.** Digital silence through `pw-play` produces the
+report, centred, in the theme's foreground rather than its error colour, and it
+does not blink. It also confirmed something the previous session could only
+infer: this machine's persistent `nolo_client` stream contributes no signal, so
+`silent` — not `no audio` — is the correct report here even with nothing else
+playing. `no audio` still cannot be reached on this machine.
+
+**The columns following the text size, before and after.** Run under a fake HOME
+carrying nothing but the theme files and a `[font] base-size`, with the mixer
+open at 640x320, and the size changed from 12 to 20 underneath the running
+process (`.sweep/font/`). Fixed: the media-name column is dropped, the meter
+keeps its gap from the reading, the marker keeps its space. Reverted to the
+unguarded bindings and repeated: the volume meter runs straight into `100%`, the
+marker is jammed against the name, and the media-name column is wrongly kept
+because the decision was made against 12 px metrics. The bug was real, not
+theoretical, and the desktop's own theme was never touched.
+
+**The contrast guard**, measured across all 22 shipped themes as above.
+
+Desktop left as found: the user's instance killed for the duration and restarted
+on the new build, default sink never moved off the headset, nested session
+stopped, nothing left running.
+
+### Still open
+
+**Live theme *switching* under load is still untested.** Text size was changed
+under a running process and picked up; a whole-theme swap while audio is flowing
+was not.
+
+Everything from the previous entry stands: the frame line and legend are still
+neutral greys, live theme switching under load is still untested, `spike/` is
+still misnamed, and the repo is still on `master`.
+
+---
+
 ## 2026-08-30 (late, third pass) — The theme was arriving, but not in the spectrum
 
 **Commit:** `0fccd97`

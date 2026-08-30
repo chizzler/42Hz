@@ -19,6 +19,7 @@ Item {
     property bool audioServiceReady: true
     property bool processingReady: true
     property bool spectrumFlowing: true
+    property bool signalPresent: true
     property int streamCount: 1
 
     readonly property alias streamPanel: panel
@@ -31,7 +32,17 @@ Item {
     //
     // Width is set by the longest thing the state report has to say, since a
     // report too wide to read is the failure the report exists to prevent.
-    readonly property real minimumWidth: Math.ceil(surfaceFont.advanceWidth("no audio service") + Theme.fontBaseSize)
+    //
+    // `advanceWidth()` is a call, not a property, so a binding that only calls
+    // it captures nothing and never re-runs -- the floor would keep the
+    // metrics of whatever font was loaded at startup and stop following
+    // `omarchy display text size`. Reading `surfaceFont.font`, which does
+    // notify, declares the dependency and takes the measurement from the font
+    // the change actually delivered rather than from whichever binding ran
+    // first.
+    readonly property real minimumWidth: surfaceFont.font.pixelSize > 0
+        ? Math.ceil(surfaceFont.advanceWidth("no audio service") + Theme.fontBaseSize)
+        : 0
     readonly property real minimumHeight: Math.round(Theme.fontBaseSize * 4)
 
     FontMetrics {
@@ -66,6 +77,7 @@ Item {
         audioServiceReady: surface.audioServiceReady
         processingReady: surface.processingReady
         spectrumFlowing: surface.spectrumFlowing
+        signalPresent: surface.signalPresent
         streamCount: surface.streamCount
     }
 

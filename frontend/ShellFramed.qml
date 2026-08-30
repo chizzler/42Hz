@@ -19,6 +19,7 @@ Item {
     property bool audioServiceReady: true
     property bool processingReady: true
     property bool spectrumFlowing: true
+    property bool signalPresent: true
     property int streamCount: 1
 
     // The legend is handed down as data. See Main: the same table drives the
@@ -44,7 +45,12 @@ Item {
     // near it.
     readonly property real minimumWidth: 2 * insetX + Math.max(
         surface.minimumWidth + 2 * (frame.thickness + frame.contentPad),
-        frame.labelInset + titleFont.advanceWidth(shell.bypassTitle) + frame.labelPad + frame.radius + frame.thickness)
+        frame.labelInset + shell.titleWidth + frame.labelPad + frame.radius + frame.thickness)
+
+    // Measured through `titleFont.font` rather than by calling advanceWidth()
+    // alone: the call captures no dependency, so the floor would stop
+    // following `omarchy display text size` -- see Surface.
+    readonly property real titleWidth: titleFont.font.pixelSize > 0 ? titleFont.advanceWidth(shell.bypassTitle) : 0
 
     // Measured from the font, not from the Frame's own labels. Reading
     // frame.topInset here made the floor depend on whether the label was
@@ -102,6 +108,7 @@ Item {
             audioServiceReady: shell.audioServiceReady
             processingReady: shell.processingReady
             spectrumFlowing: shell.spectrumFlowing
+            signalPresent: shell.signalPresent
             streamCount: shell.streamCount
         }
     }

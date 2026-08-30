@@ -21,6 +21,11 @@ set(CMAKE_AUTOMOC ON)
 qt_policy(SET QTP0001 NEW)
 qt_policy(SET QTP0004 NEW)
 
+# The spectrum's dB window is shared between the renderer and the window that
+# reports silence, so it is a singleton rather than a constant restated in two
+# components that have no parent/child relationship to pass it through.
+set_source_files_properties(SpectrumScale.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
+
 qt_add_qml_module(hz_frontend
     STATIC
     URI hz.ui
@@ -32,7 +37,7 @@ qt_add_qml_module(hz_frontend
         Main.qml
         Frame.qml
         Spectrum.qml
-        SpectrumCells.qml
+        SpectrumScale.qml
         StateReport.qml
         TooSmall.qml
         StreamPanel.qml

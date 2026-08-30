@@ -54,6 +54,24 @@ The live signal is the resting surface, not decoration around a settings panel.
 No signal, unavailable audio, and processing failure are distinct states and
 must be reported.
 
+**The spectrum shows level, not shape.** A bar's height is the absolute
+magnitude the core reported, placed in a fixed dB window; quiet audio draws a
+quiet spectrum. Rescaling each frame to its own minimum and maximum is
+forbidden, however much livelier it looks: it makes a whisper and a peak
+pixel-identical, and a resting surface that never rests reports nothing at all.
+
+The window is anchored at both ends. The core delivers magnitudes in dB
+referenced to full scale and clamped at -100, and a 0 dBFS signal reads **-6 dB**
+there — the core mixes to mono as `0.5 * (L + R)` and compensates the Hann
+window's coherent gain with a factor of two, which leaves a half. So the ceiling
+is -6 dB, where a full-scale signal fills the window exactly and nothing clips,
+and the floor is -90 dB, above the core's own clamp so that the clamp lands at
+the bottom of the window rather than below it.
+
+The floor is shared with the state report rather than owned by the renderer.
+Silence is reported when every point falls below it, so the message appears
+exactly when there would otherwise be nothing on screen.
+
 ### Mixing is central
 
 42Hz must preserve EasyEffects' application-stream model. Users can identify
@@ -198,7 +216,16 @@ single window-wide threshold would take a working bare window away to fix a
 framed-mode problem.
 
 Every floor is derived from font metrics, so it follows `omarchy display text
-size` rather than fixing a pixel count. A floor must not be derived from
+size` rather than fixing a pixel count. **A measurement taken by calling
+`advanceWidth()` does not follow it on its own.** The call is a method, not a
+property, so a binding that only calls it captures no dependency and never
+re-runs; the measurement freezes at whatever font was loaded at startup. The
+binding must also read the `FontMetrics` object's own `font` property, which
+notifies — and reading that rather than the theme's keys is what keeps the
+measurement from being taken against a stale font, since both are bindings on
+the same signal and their order is not defined.
+
+A floor must not be derived from
 anything that depends on visibility: QML propagates `visible` to children, so a
 minimum computed from live label geometry collapses at the moment the shell is
 hidden for being too small, and the window oscillates between the two answers.
@@ -397,7 +424,7 @@ There will be a ui to enable or disable effects on each source, atm there is onl
 - Watch the atomically replaced current-theme state and apply changes live without restarting the application or audio graph. **Watch the parent directory, not the theme directory or its files.** `omarchy-theme-set` replaces `current/theme` by removal and rename, so a watch on `theme/` or on `colors.toml` is dropped by the swap and never recovers, even though a file reappears at the same path moments later. `~/.local/state/omarchy/current/` outlives the swap and is the only durable signal. Re-establish the finer-grained watches after every load, and coalesce: one switch produces a burst of events.
 - Use theme and font hooks only as optional low-latency notifications; file/state monitoring remains the reliable path. Omarchy's own shell is notified through Quickshell IPC, which 42Hz cannot receive, so this is not a preference but the only available route.
 - Follow the font family Omarchy manages system-wide, which is the fontconfig alias `monospace` rather than a concrete family. Naming a resolved family defeats `omarchy font set`.
-- Derive contrast-safe fallbacks when a theme omits a value or produces an illegible pairing.
+- Derive contrast-safe fallbacks when a theme omits a value or produces an illegible pairing. Two tiers, because one ratio applied everywhere is wrong in both directions. Body text is held to 4.5:1 and replaced outright when it fails. Secondary text — the legend, the state report's qualifier, the media-name column, an unselected stream's name — is dimmer by design, so it is held to 3:1 and *lifted* toward white or black only as far as that ratio, which keeps the theme's hue instead of swapping the colour for a neutral. Both tiers are text; neither `muted` nor `dark_foreground` is decoration.
 - Start with built-in fallback tokens if Omarchy state is unavailable.
 - Keep all 42Hz mappings inside the application; never edit `/usr/share/omarchy/`, stock themes, or user configuration.
 
@@ -414,6 +441,12 @@ Detect and report capabilities independently:
 - **Processing ready:** virtual nodes and the processing graph are live.
 - **EQ ready:** the supported LV2 provider was discovered and instantiated.
 - **Omarchy theme ready:** resolved theme and font state were loaded.
+
+A stream that is open and silent is one of these states and not a fault. It is
+reported in words, because a truthful spectrum draws nothing for it; the report
+is held for a moment first, since music has rests and a message that blinks on
+every one of them is noise. Absence of frames is a different state from frames
+that carry no signal, and the two are named differently.
 
 Silence, an unreachable audio service, a stopped pipeline and a crashed process
 must never look alike. Each is named in the centre of the window, in the space

@@ -20,6 +20,7 @@ Item {
     property bool audioServiceReady: true
     property bool processingReady: true
     property bool spectrumFlowing: true
+    property bool signalPresent: true
     property int streamCount: 1
 
     // The empty mixer says one thing and means it, so it borrows the same
@@ -60,6 +61,18 @@ Item {
                 "title": "no spectrum",
                 "detail": "audio is playing but no frames are arriving",
                 "error": true
+            };
+
+        // Frames are arriving and every one of them is at the floor. Since the
+        // spectrum became truthful about level this draws an empty window
+        // rather than a full-height picture of the noise floor, so the state
+        // has to be named. It is not a fault: a stream that is open and quiet
+        // is a normal thing for a stream to be.
+        if (!report.signalPresent)
+            return {
+                "title": "silent",
+                "detail": "a stream is open but nothing is playing",
+                "error": false
             };
 
         return {

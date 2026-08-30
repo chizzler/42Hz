@@ -4,6 +4,11 @@ import ee.ui
 // Pixel spectrum: one filled bar per point, coloured along the theme's ramp by
 // amplitude. Knows nothing about layout -- whoever instantiates it decides how
 // much room it gets.
+//
+// Height and colour are both absolute. A point is placed in the fixed dB
+// window SpectrumScale describes, so quiet audio draws short dim bars and loud
+// audio draws tall bright ones, and the two are told apart on sight. Nothing
+// here looks at the rest of the frame.
 Canvas {
     id: canvas
 
@@ -50,24 +55,23 @@ Canvas {
         if (n === 0)
             return;
 
-        let lo = Infinity, hi = -Infinity;
-        for (let i = 0; i < n; i++) {
-            const v = pts[i].y;
-            if (v < lo)
-                lo = v;
-            if (v > hi)
-                hi = v;
-        }
-        const span = (hi - lo) > 1e-6 ? (hi - lo) : 1;
-
         // Hoisted: these are bindings, and the ramp is interpolated in JS
         // rather than per-bar through C++, which this loop runs at 60 Hz.
         const cLo = canvas.lowColor;
         const cHi = canvas.highColor;
         const bw = width / n;
+        const floorDb = SpectrumScale.floorDb;
+        const rangeDb = SpectrumScale.rangeDb;
 
         for (let i = 0; i < n; i++) {
-            const norm = (pts[i].y - lo) / span;
+            const norm = Math.max(0, Math.min(1, (pts[i].y - floorDb) / rangeDb));
+
+            // At the floor there is no bar. Drawing a one-pixel stub instead
+            // would put a permanent line across the window that reads as
+            // signal, and silence is reported in words rather than drawn.
+            if (norm <= 0)
+                continue;
+
             ctx.fillStyle = Qt.rgba(cLo.r + (cHi.r - cLo.r) * norm, cLo.g + (cHi.g - cLo.g) * norm, cLo.b + (cHi.b - cLo.b) * norm, 1);
             ctx.fillRect(i * bw, height - norm * height, Math.max(1, bw - canvas.gap), norm * height);
         }

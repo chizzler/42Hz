@@ -42,8 +42,14 @@ Item {
     readonly property string legend: {
         // Named so the binding re-runs when the theme changes the metric:
         // advanceWidth() is a call, not a property, and would not be tracked.
-        const family = Theme.fontFamily;
-        const size = Theme.fontBaseSize;
+        //
+        // The metrics object rather than Theme's own keys, because both are
+        // bindings on the same signal and their order is not defined -- naming
+        // `legendFont.font` reads the font the change actually delivered
+        // instead of whichever of the two happened to run first.
+        if (legendFont.font.pixelSize <= 0)
+            return "";
+
         const available = frame.legendAvailable;
 
         let shown = frame.legendItems.slice();

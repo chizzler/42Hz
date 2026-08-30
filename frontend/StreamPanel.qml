@@ -35,13 +35,29 @@ Item {
         font.pixelSize: Theme.fontBaseSize
     }
 
-    readonly property real markerWidth: Math.ceil(metrics.advanceWidth("\u203a "))
-    readonly property real readingWidth: Math.ceil(metrics.advanceWidth("100%"))
+    // Every measurement below reads `metrics.font` before calling
+    // advanceWidth().
+    //
+    // `advanceWidth()` is a call, not a property: a binding that only calls it
+    // captures no dependency and never re-runs, so these columns kept the
+    // metrics of whatever font was loaded at startup and stopped following
+    // `omarchy display text size` -- the type moved and the columns did not.
+    // `metrics.font` does notify, so reading it is what makes them live, and
+    // reading it rather than Theme's own keys takes the measurement from the
+    // font the change delivered instead of from whichever binding happened to
+    // run first.
+    //
+    // Stated once per column rather than gathered into one object: an object
+    // is undefined until its own binding has run, and the widths that read it
+    // are not guaranteed to run second. That cost four `Cannot read property
+    // of undefined` errors on the first pass -- invisible in a Release build,
+    // for the reason recorded under *Upstream baseline* in `project.md`.
+    readonly property real markerWidth: metrics.font.pixelSize > 0 ? Math.ceil(metrics.advanceWidth("\u203a ")) : 0
+    readonly property real readingWidth: metrics.font.pixelSize > 0 ? Math.ceil(metrics.advanceWidth("100%")) : 0
 
     // What a column needs before it is worth drawing at all. Ten characters is
     // where a stream name stops being a name and becomes a prefix.
-    readonly property real minTextWidth: Math.ceil(metrics.advanceWidth("mmmmmmmmmm"))
-    readonly property real meterWidth: Math.round(Theme.fontBaseSize * 4)
+    readonly property real minTextWidth: metrics.font.pixelSize > 0 ? Math.ceil(metrics.advanceWidth("mmmmmmmmmm")) : 0
 
     // Both state words together are wider than a narrow row can spare beside a
     // readable name -- at 240 px they left the name 31 px, which elided to a
@@ -50,7 +66,11 @@ Item {
     // name elided to nothing is the failure the column widths exist to
     // prevent. So the words contract to their initials instead, and both
     // states stay on screen.
-    readonly property real wideFlagsWidth: Math.ceil(metrics.advanceWidth("muted")) + Math.ceil(metrics.advanceWidth("bypassed"))
+    readonly property real wideFlagsWidth: metrics.font.pixelSize > 0
+        ? Math.ceil(metrics.advanceWidth("muted")) + Math.ceil(metrics.advanceWidth("bypassed"))
+        : 0
+
+    readonly property real meterWidth: Math.round(Theme.fontBaseSize * 4)
 
     // The space left over if the flags never contract. Every decision about
     // which columns exist is made against this rather than against the space
@@ -65,8 +85,8 @@ Item {
     readonly property string muteText: panel.compactFlags ? "M" : "muted"
     readonly property string processText: panel.compactFlags ? "B" : "bypassed"
 
-    readonly property real muteWidth: Math.ceil(metrics.advanceWidth(panel.muteText))
-    readonly property real processWidth: Math.ceil(metrics.advanceWidth(panel.processText))
+    readonly property real muteWidth: metrics.font.pixelSize > 0 ? Math.ceil(metrics.advanceWidth(panel.muteText)) : 0
+    readonly property real processWidth: metrics.font.pixelSize > 0 ? Math.ceil(metrics.advanceWidth(panel.processText)) : 0
 
     // Reserved against both flags being present even when neither is, so a
     // stream being muted cannot reflow the row it is in. The flags themselves

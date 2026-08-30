@@ -48,6 +48,12 @@ double contrast(const QColor& a, const QColor& b) {
 // reuse, so a pairing below this ratio is replaced rather than honoured.
 constexpr double kMinContrast = 4.5;
 
+// Secondary text -- the legend, the state report's qualifier, the media-name
+// column, an unselected stream's name -- is dimmer on purpose, so the body-text
+// ratio would overcorrect it into the very foreground it exists to sit below.
+// It is held to the large-text ratio instead.
+constexpr double kMinSecondaryContrast = 3.0;
+
 // How much of the accent's chroma each end of the spectrum ramp carries.
 constexpr double kSpectrumFloorChroma = 0.55;
 constexpr double kSpectrumPeakChroma = 0.85;
@@ -56,6 +62,11 @@ constexpr double kSpectrumPeakChroma = 0.85;
 // saturation below which it has none to lend.
 constexpr double kOwnHueSaturation = 0.15;
 constexpr double kAchromatic = 0.01;
+
+QColor mix(const QColor& a, const QColor& b, double t) {
+  return QColor::fromRgbF(a.redF() + (b.redF() - a.redF()) * t, a.greenF() + (b.greenF() - a.greenF()) * t,
+                          a.blueF() + (b.blueF() - a.blueF()) * t);
+}
 
 QColor legibleOn(const QColor& fg, const QColor& bg) {
   if (contrast(fg, bg) >= kMinContrast) {
@@ -66,6 +77,34 @@ QColor legibleOn(const QColor& fg, const QColor& bg) {
   const QColor black(Qt::black);
 
   return contrast(white, bg) >= contrast(black, bg) ? white : black;
+}
+
+// The same guard for secondary text, applied gently.
+//
+// `legibleOn` replaces a failing colour outright with white or black, which is
+// right for body text and wrong here: `muted` and `dark_foreground` carry the
+// theme's hue as much as anything in the palette, and a theme whose muted grey
+// sits at 3:1 would have it swapped for pure white and lose that. This lifts
+// the colour toward the nearer of white or black and stops at the first step
+// that clears the ratio, so the hue survives and only the lightness moves.
+QColor liftedOn(const QColor& fg, const QColor& bg) {
+  if (contrast(fg, bg) >= kMinSecondaryContrast) {
+    return fg;
+  }
+
+  const QColor toward = luminance(bg) > 0.5 ? QColor(Qt::black) : QColor(Qt::white);
+
+  constexpr int kSteps = 20;
+
+  for (int step = 1; step <= kSteps; ++step) {
+    const QColor lifted = mix(fg, toward, static_cast<double>(step) / kSteps);
+
+    if (contrast(lifted, bg) >= kMinSecondaryContrast) {
+      return lifted;
+    }
+  }
+
+  return toward;
 }
 
 // Give the spectrum ramp the theme's colour, keeping the lightness it has.
@@ -116,11 +155,6 @@ void tintRamp(QColor& floorColor, QColor& peakColor, const QColor& accent, doubl
 
   apply(floorColor, floorChroma);
   apply(peakColor, peakChroma);
-}
-
-QColor mix(const QColor& a, const QColor& b, double t) {
-  return QColor::fromRgbF(a.redF() + (b.redF() - a.redF()) * t, a.greenF() + (b.greenF() - a.greenF()) * t,
-                          a.blueF() + (b.blueF() - a.blueF()) * t);
 }
 
 qreal alphaOf(const QHash<QString, QString>& shell, const QString& key, qreal fallback) {
@@ -314,11 +348,21 @@ void Theme::reload() {
   m_spectrumLow = spectrumFloor;
   m_spectrumHigh = spectrumPeak;
 
-  // Contrast guard. Applied to text-bearing tokens only: the spectrum and
-  // chrome are allowed to sit close to the background by design.
+  // Contrast guard, after the spectrum is derived so the ramp keeps the
+  // theme's own levels: the spectrum and the drawn chrome are allowed to sit
+  // close to the background by design.
+  //
+  // Both tiers are text-bearing. `muted` and `foregroundDim` are not
+  // decoration -- between them they carry the legend, the state report's
+  // qualifier, the media-name column and every unselected stream name -- so
+  // they are guarded too, at the secondary ratio and by lifting rather than
+  // replacement.
   m_foreground = legibleOn(m_foreground, m_background);
   m_foregroundLight = legibleOn(m_foregroundLight, m_background);
   m_foregroundBright = legibleOn(m_foregroundBright, m_background);
+
+  m_muted = liftedOn(m_muted, m_background);
+  m_foregroundDim = liftedOn(m_foregroundDim, m_background);
 
   m_controlFillAlpha = alphaOf(shell, QStringLiteral("controls.normal-fill-alpha"), 0.04);
   m_controlBorderAlpha = alphaOf(shell, QStringLiteral("controls.normal-border-alpha"), 0.4);
