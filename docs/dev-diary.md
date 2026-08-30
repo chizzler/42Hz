@@ -24,7 +24,7 @@ happens — this remains the account of record. Detailed evidence lives in
 
 ## 2026-08-30 (night, fourth pass) — The mixer sweep, and a cycle it let through
 
-**Commit:** _(backfilled)_
+**Commit:** `849e7bb`
 
 Milestone 3's verification, run at graph level against the real desktop rather
 than through captures. `pactl` and `pw-link` are better evidence than a
