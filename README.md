@@ -16,20 +16,46 @@ pinned upstream base, and is verified against real application streams, the EQ
 LV2 provider and its failure path, default-sink routing, forced termination, and
 a speaker-tuning filter-chain. Milestone 2's responsive behaviour has been swept
 across tiled, floating, narrow, wide and fullscreen geometries and the defects
-it found are fixed; the milestone stays open on live theme adaptation, which is
-verifiable per-theme but has not been tested while switching under load.
-Milestone 3 is built rather than verified: the mixer runs, but the stream
-classes, device churn, virtual sinks and graph-failure recovery it names have
-not been exercised.
+it found are fixed; the theme is verified against every shipped Omarchy theme
+and follows a live text-size change, leaving a whole-theme switch under load as
+the last open item. Milestone 3 has been swept at graph level — device churn,
+virtual sinks and stream capture all behave, and the one defect it found, a
+feedback loop 42Hz would build through its own sink, is fixed. Browser and game
+streams, speaker-tuning coexistence and the mixer's on-screen display remain.
 
 42Hz's own frontend lives in [`frontend/`](frontend) and renders the live spectrum
 on the active Omarchy theme — palette, typography and spectrum ramp all resolved
-from Omarchy state and updated without a restart when the theme changes. Bar density
-follows window width, two chrome modes are switchable from the keyboard, and
-signal and capability state is reported in the centre of the window. An
-application mixer lists live playback streams with volume, mute, and
-processing-inclusion controls, and global processing bypass is one keypress
-away and named in the window while it is on.
+from Omarchy state and updated without a restart when the theme changes.
+
+The spectrum shows **absolute level**: a bar's height is the magnitude the core
+reported, placed in a fixed dB window, so quiet audio draws a quiet spectrum
+rather than a rescaled copy of a loud one. It has two appearances — filled pixel
+bars, and a character grid built from block elements the way cava and btop draw
+one — and both read the same window, so switching cannot look like the signal
+changed. Density and style are adjusted from btop-style controls drawn into the
+frame's top edge, and dropped when the window is too narrow to hold them beside
+the title.
+
+Signal and capability state is reported in the centre of the window, and silence
+is one of those states: a stream that is open and playing nothing is named
+rather than left as an empty window. An application mixer lists live playback
+streams with volume, mute, and processing-inclusion controls. Two chrome modes
+are switchable from the keyboard, every action is reachable by key at every
+size, and key hints are drawn in the theme's accent wherever they appear.
+
+## Known limitations
+
+Both are inherited from EasyEffects, present in the same code upstream, and not
+fixed here — closing either would take a large rewrite of the derived core's
+connection handling, which is the reinvention this project exists to avoid.
+
+- **42Hz does not reconnect after a PipeWire restart.** It stays running and
+  reports that the audio service is gone, but its virtual sink does not come
+  back; restart 42Hz to recover. It no longer exits when this happens, which it
+  used to.
+- **An audio service that is unreachable at startup aborts the process.** If
+  PipeWire is not running when 42Hz launches, it cannot start and cannot report
+  why.
 
 ## Derivation and attribution
 

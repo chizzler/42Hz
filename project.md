@@ -5,7 +5,7 @@
 - **Public name:** 42Hz
 - **Executable:** `42hz`
 - **Working directory:** `~/Work/42Hz/`
-- **Status:** milestone 1 complete; milestones 2 and 3 in progress. Milestone 2's responsive verification has been run and the defects it found are fixed; live theme adaptation across light and dark themes remains unverified, so the milestone is not closed. Progress, verification and open threads are tracked in [`docs/dev-diary.md`](docs/dev-diary.md), not here.
+- **Status:** milestone 1 complete; milestones 2 and 3 in progress. Milestone 2's responsive sweep has been run and its defects fixed, the theme is verified across every shipped theme and follows a live text-size change; a whole-theme switch under load is what remains. Milestone 3 has been swept at graph level and the feedback-cycle defect it found is fixed; browser and game streams, speaker-tuning coexistence and the mixer's on-screen display remain. Progress, verification and open threads are tracked in [`docs/dev-diary.md`](docs/dev-diary.md), not here.
 
 ### How to read this document
 
@@ -115,7 +115,7 @@ not a new audio engine.
 
 The first useful release includes:
 
-- a responsive live spectrum analyzer;
+- a responsive live spectrum analyzer, showing absolute level, in either of two appearances;
 - an active application-stream mixer with volume, mute, and processing inclusion;
 - clear input/output pipeline and endpoint state;
 - global processing bypass;
@@ -496,7 +496,23 @@ For the first release, the Arch package should conflict with EasyEffects so two 
 
 ## Effects and dependencies
 
-There will be a ui to enable or disable effects on each source, atm there is only 1 effect planned - an output equalizer backed by one pinned LV2 implementation. On Arch Linux this is the LSP equalizer `http://lsp-plug.in/plugins/lv2/para_equalizer_x32_lr`, supplied by `lsp-plugins-lv2`; its package is a required runtime dependency. The spectrum separately uses `comp_delay_x2_stereo` from the same package for A/V sync compensation.
+The first release ships one effect: an output equalizer backed by one pinned LV2
+implementation. On Arch Linux this is the LSP equalizer
+`http://lsp-plug.in/plugins/lv2/para_equalizer_x32_lr`, supplied by
+`lsp-plugins-lv2`; its package is a required runtime dependency. The spectrum
+separately uses `comp_delay_x2_stereo` from the same package for A/V sync
+compensation.
+
+**There is no per-source effect UI to build**, because there is no per-source
+chain to configure — see *Mixing is central*. The effect list is one list for
+the whole output pipeline; a stream is either included in processing or it is
+not, and that control is already in the mixer. What a later release may add is
+more effects *in* that chain, never a chain per stream.
+
+The chain is currently empty. `DbStreamOutputs::plugins` defaults to no plugins,
+so the output pipeline runs as a live passthrough, and global bypass has nothing
+to switch off — which is why its binding is not advertised until the equalizer
+is in that list. Putting it there is the first step of milestone 4.
 
 ## Omarchy theme integration
 
