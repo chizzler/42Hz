@@ -489,6 +489,57 @@ def pw_node_manager_cycle_hpp(s):
     return sub(s, "  models::Nodes& model_nodes;", "  // Link-groups known to read from 42Hz's own sink. Kept here rather than\n  // derived from the node model, because the capture half that proves it is\n  // ignored and removed from that model before it can be consulted.\n  QSet<QString> link_groups_reading_ee_sink;\n" + "\n  models::Nodes& model_nodes;")
 
 
+# ---- honour node.dont-move: a filter's stream is not an application's ----
+#
+# project.md: "never move a DSP filter's own stream as if it were an
+# application". 42Hz did move it, and got away with it only because someone else
+# said no.
+#
+# Omarchy's speaker tuning is a filter-chain sink whose output leg pins
+# target.object at the speaker and sets node.dont-move, with a comment naming the
+# risk: anything rerouting "all streams" would drag the processing along, "or
+# into the tuning's own sink, which is a cycle". Under processAllOutputs 42Hz did
+# exactly that -- it wrote target.object = <42hz_sink> onto that pinned node, and
+# WirePlumber refused the move. A filter chain that omits the pin, or a different
+# session manager, would have been dragged in; measured, one without it was.
+#
+# node.dont-move is not a PW_KEY_ constant. It is a convention WirePlumber reads
+# as a raw string in scripts/linking/find-defined-target.lua, so it is read as
+# one here too.
+#
+# Both mechanisms need it. The node manager writes the metadata itself when a
+# node appears; Manager::connectStream{Output,Input} are called from the startup
+# reconciliation and from the blocklist handler. Guarding only the first honours
+# the pin for streams that arrive while 42Hz is running and ignores it for
+# everything already there when it started.
+def pw_objects_dont_move(s):
+    return sub(s, "  bool connected = false;\n", '  // node.dont-move. Not a PipeWire constant -- a convention WirePlumber\n  // reads as a raw string, set by anything whose routing is a structural\n  // fact rather than a preference: the output leg of a filter-chain sink,\n  // which belongs to the device it was fitted for and nowhere else.\n  bool dont_move = false;\n' + "\n  bool connected = false;\n")
+
+
+def pw_node_manager_dont_move(s):
+    s = sub(s, '  if (const auto* target_object = spa_dict_lookup(info->props, PW_KEY_TARGET_OBJECT)) {\n    nd->nd_info->target_object = target_object;\n  }\n', '  if (const auto* target_object = spa_dict_lookup(info->props, PW_KEY_TARGET_OBJECT)) {\n    nd->nd_info->target_object = target_object;\n  }\n\n  util::spa_dict_get_bool(info->props, "node.dont-move", nd->nd_info->dont_move);\n')
+    s = sub(s, '  auto connect_to_ee_sink = [&]() {\n    if (DbMain::processAllOutputs() && !nd->nd_info->is_blocklisted) {\n', '  auto connect_to_ee_sink = [&]() {\n    if (DbMain::processAllOutputs() && !nd->nd_info->is_blocklisted) {\n' + '      // Some streams are not applications and their routing is not a\n      // preference. The output leg of a filter-chain sink -- an Omarchy\n      // speaker tuning, say -- belongs to the device it was fitted for,\n      // and says so with node.dont-move.\n      if (nd->nd_info->dont_move) {\n        return;\n      }\n\n')
+    return sub(s, '  auto connect_to_ee_source = [&]() {\n    if (DbMain::processAllInputs() && !nd->nd_info->is_blocklisted) {\n', '  auto connect_to_ee_source = [&]() {\n    if (DbMain::processAllInputs() && !nd->nd_info->is_blocklisted) {\n' + '      if (nd->nd_info->dont_move) {\n        return;\n      }\n\n')
+
+
+def pw_manager_dont_move(s):
+    s = sub(s, 'void Manager::connectStreamOutput(const uint& id) const {\n  set_metadata_target_node(id, ee_sink_node.id, ee_sink_node.serial);\n}\n', '// The other way a stream is moved. The node manager writes the metadata itself\n// when a node appears; these are called from the startup reconciliation and from\n// the blocklist handler, so a pin has to be honoured in both places or it holds\n// only for streams that arrive while 42Hz is already running.\nvoid Manager::connectStreamOutput(const uint& id) const {\n  if (model_nodes.get_node_by_id(id).dont_move) {\n    return;\n  }\n\n  set_metadata_target_node(id, ee_sink_node.id, ee_sink_node.serial);\n}\n')
+    return sub(s, 'void Manager::connectStreamInput(const uint& id) const {\n  set_metadata_target_node(id, ee_source_node.id, ee_source_node.serial);\n}\n', 'void Manager::connectStreamInput(const uint& id) const {\n  if (model_nodes.get_node_by_id(id).dont_move) {\n    return;\n  }\n\n  set_metadata_target_node(id, ee_source_node.id, ee_source_node.serial);\n}\n')
+
+
+# ---- pw_model_nodes: the lookup those guards need is a read ----
+def pw_model_nodes_const_lookup_hpp(s):
+    return sub(s, "  auto get_node_by_id(const uint& id) -> NodeInfo;",
+        "  // const: it is a lookup, and the routing guards that consult it are\n"
+        "  // called from const context.\n"
+        "  [[nodiscard]] auto get_node_by_id(const uint& id) const -> NodeInfo;")
+
+
+def pw_model_nodes_const_lookup_cpp(s):
+    return sub(s, "auto Nodes::get_node_by_id(const uint& id) -> NodeInfo {",
+        "auto Nodes::get_node_by_id(const uint& id) const -> NodeInfo {")
+
+
 # ---- contents/kcfg/*.kcfg: the KConfig file paths ----
 #
 # THIS is where settings actually land. db_manager.cpp only creates the
@@ -541,6 +592,11 @@ edit("src/pw_manager.cpp", pw_manager_service_state)
 edit("src/pw_objects.hpp", pw_objects_link_group)
 edit("src/pw_node_manager.cpp", pw_node_manager_cycle_cpp)
 edit("src/pw_node_manager.hpp", pw_node_manager_cycle_hpp)
+edit("src/pw_objects.hpp", pw_objects_dont_move)
+edit("src/pw_node_manager.cpp", pw_node_manager_dont_move)
+edit("src/pw_manager.cpp", pw_manager_dont_move)
+edit("src/pw_model_nodes.hpp", pw_model_nodes_const_lookup_hpp)
+edit("src/pw_model_nodes.cpp", pw_model_nodes_const_lookup_cpp)
 edit("src/autostart.cpp", autostart)
 edit("src/global_shortcuts.cpp", shortcuts)
 edit("src/global_shortcuts.hpp", shortcuts)

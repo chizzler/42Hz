@@ -446,7 +446,17 @@ mechanism, not of the control.
   singular: one chain per direction, shared by every stream in it;
 - distinguish virtual processing nodes from effective physical endpoints;
 - preserve Omarchy speaker-tuning chains;
-- never move a DSP filter's own stream as if it were an application;
+- never move a DSP filter's own stream as if it were an application, which in
+  practice means honouring **`node.dont-move`**: some streams are not
+  applications and their routing is a structural fact rather than a preference.
+  Omarchy's speaker tuning sets it on the output leg of its filter-chain sink,
+  with a comment naming the risk — anything rerouting "all streams" would drag
+  the processing onto the wrong device, "or into the tuning's own sink, which is
+  a cycle". It is not a `PW_KEY_` constant but a convention WirePlumber reads as
+  a raw string, and it must be honoured on both paths that move a stream: the
+  one taken when a node appears, and the one taken for nodes already present
+  when 42Hz starts. Guarding only the first honours the pin for streams that
+  arrive later and ignores it for everything already running;
 - refuse to link a stream whose path returns to 42Hz's own sink;
 
 **Detecting that path needs `node.link-group`, not the link graph.** The two
@@ -480,7 +490,11 @@ against 42Hz's sink by name — one arrangement — and a loopback sourced from
 - change routing only after the replacement processing path is confirmed live;
 - fall back to a valid physical endpoint if the graph fails or disappears.
 
-42Hz chains in front of a speaker-tuning filter-chain sink. One hazard is inherited: a filter-chain sink whose playback stream pins no target follows the default sink, so making a DSP virtual sink the default closes a feedback loop through it. Stock EasyEffects behaves identically, but 42Hz must detect a cycle through its own sink rather than link it — hence the constraint above.
+42Hz chains in front of a speaker-tuning filter-chain sink, and that
+arrangement is verified: with the tuning sink selected as the default output,
+applications land in 42Hz's sink, 42Hz's output leg follows the default onto the
+tuning, and the tuning's own pinned leg reaches the device — `app → 42hz_sink →
+spectrum → level → tuning → device`, with no cycle and the pin untouched. One hazard is inherited: a filter-chain sink whose playback stream pins no target follows the default sink, so making a DSP virtual sink the default closes a feedback loop through it. Stock EasyEffects behaves identically, but 42Hz must detect a cycle through its own sink rather than link it — hence the constraint above.
 
 Omarchy's speaker tuning is a **native PipeWire filter-chain**, not an EasyEffects preset. `/usr/share/omarchy/default/audio/tunings/` ships `filter-chain.conf` files fitted by measurement from an EasyEffects profile, redistributing no upstream asset. Conflicting with the EasyEffects package therefore costs Omarchy's tuning nothing. The coexistence problem is 42Hz chained behind a filter-chain sink — an ordering and endpoint-resolution question — not 42Hz versus EasyEffects.
 

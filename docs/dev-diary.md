@@ -22,6 +22,106 @@ happens — this remains the account of record. Detailed evidence lives in
 
 ---
 
+## 2026-08-31 — 42Hz was moving Omarchy's speaker tuning, and getting away with it
+
+**Commit:** _(backfilled)_
+
+Milestone 3's speaker-tuning coexistence, which turned out to be a defect rather
+than a check.
+
+### Reading the tuning first was the whole job
+
+`/usr/share/omarchy/default/audio/tunings/dell-xps-2026/filter-chain.conf` is a
+plain filter-chain sink, and its playback leg carries this:
+
+```
+target.object    = "@SPEAKER_SINK@"
+node.dont-move   = true
+# ... anything that reroutes "all streams" to a newly selected output would drag
+# the processing along -- onto headphones, or into the tuning's own sink, which
+# is a cycle. Pin it.
+node.dont-fallback = true
+```
+
+Omarchy had already named the exact hazard and defended against it. The question
+was therefore not whether the tuning protects itself but whether 42Hz respects
+the protection — and `project.md` requires it to: *never move a DSP filter's own
+stream as if it were an application.*
+
+`node.dont-move` appears nowhere in the derived core.
+
+### It moved it, and WirePlumber said no
+
+Reproduced with a null sink plus a pinned loopback, which is a filter-chain sink's
+topology exactly — a sink node and an output leg — without touching any PipeWire
+config.
+
+Without the pin, 42Hz captured the tuning's output leg into its own sink,
+overriding the sink the module had been given explicitly. With the pin it stayed
+put, so at first this looked like correct behaviour. It was not:
+
+```
+update: id:102 key:'target.node'   value:'85'
+update: id:102 key:'target.object' value:'2762'      <- 42hz_sink
+```
+
+42Hz wrote its own sink onto the pinned node. It issued the move; **WirePlumber
+refused it.** The tuning survived on someone else's guard, and a filter chain
+that omits the pin, or a different session manager, would not have.
+
+That is a defect, and it is 42Hz's own — the same category as the feedback cycle,
+not the inherited-limitation category the connection gaps went into.
+
+### Two mechanisms, and guarding one is worse than guarding neither
+
+The node manager writes the target metadata itself when a node appears.
+`Manager::connectStream{Output,Input}` write it too, and are called from the
+startup reconciliation and from the blocklist handler. Guarding only the first
+honours the pin for streams that arrive while 42Hz is running and ignores it for
+everything already there when it started — which is the common case, since a
+speaker tuning is loaded at login and 42Hz starts after it.
+
+Fixing the second needed `Nodes::get_node_by_id` to be `const`, since the guards
+sit in `const` methods. It is a lookup; it is const now.
+
+The property is read as a raw string. There is no `PW_KEY_NODE_DONT_MOVE` — it
+is a convention, which WirePlumber itself reads with
+`cutils.parseBool (si_props ["node.dont-move"])`.
+
+### Verified
+
+From a clean cycle -- `fetch.sh`, the full inventory re-applied, both trees
+rebuilt -- and tested on the **Release** binary rather than the prototype. With
+the pinned tuning and an ordinary stream live at once: the tuning's leg stayed on
+the headset with **no metadata written to it at all**, and `mpv` was captured
+into `42hz_sink`. Before the fix the same run wrote `target.object = <42hz_sink>`
+onto that node.
+
+The whole arrangement `project.md` describes was then formed end to end, with the
+tuning sink selected as the default output:
+
+```
+mpv -> 42hz_sink -> hz_soe_spectrum -> hz_soe_output_level -> test_tuning -> headset
+```
+
+42Hz chaining in front of the tuning, the tuning reaching the device on its own
+pinned leg, no cycle.
+
+Headset muted for the duration and restored to unmuted at 100%; default sink
+returned to the headset and the test modules unloaded.
+
+### Still open
+
+Milestone 3: browser and game streams, and the mixer's on-screen display, which
+has not been re-swept since the legend and top edge changed.
+
+Worth noting what this run did *not* test: Omarchy's actual tuning. This machine
+ships only `dell-xps-2026` and is not a Dell, so the topology was reproduced by
+hand. The properties were taken from the real conf, but a run on matching
+hardware would be worth more.
+
+---
+
 ## 2026-08-30 (night, seventh pass) — Teaching the keyboard
 
 **Commit:** `c923c48`
