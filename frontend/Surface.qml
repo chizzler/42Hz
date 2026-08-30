@@ -12,7 +12,18 @@ Item {
 
     property var points: []
     property int barWidth: 10
+    property string spectrumStyle: "bars"
     property bool streamsVisible: false
+
+    // Announcements. The window raises these; they are drawn here so that in
+    // framed chrome they land inside the border rather than across it -- the
+    // toast used to be anchored to the window and wrote over the linework.
+    property string toastText: ""
+    property int toastSeq: 0
+
+    // Bare chrome is this surface and nothing else, so it draws no controls --
+    // which is why the window still announces density and style changes here.
+    readonly property bool showsSpectrumControls: false
 
     // Capability state, forwarded rather than interpreted. What each
     // combination means to a reader is StateReport's business.
@@ -57,7 +68,10 @@ Item {
     // so three sites restating it is three chances to drift half a gutter.
     readonly property real gutter: Math.round(Theme.fontBaseSize * 0.5)
 
-    Spectrum {
+    // One renderer at a time rather than two with one hidden: both write
+    // DbSpectrum.nPoints, and two of them would fight over how many points the
+    // core resamples to.
+    Loader {
         id: spectrum
 
         anchors.left: parent.left
@@ -66,9 +80,26 @@ Item {
         anchors.bottom: surface.streamsVisible ? divider.top : parent.bottom
         anchors.bottomMargin: surface.streamsVisible ? surface.gutter : 0
 
-        points: surface.points
-        barWidth: surface.barWidth
-        gap: 2
+        sourceComponent: surface.spectrumStyle === "cells" ? cellsStyle : barsStyle
+
+        onLoaded: item.points = Qt.binding(() => surface.points)
+    }
+
+    Component {
+        id: barsStyle
+
+        Spectrum {
+            barWidth: surface.barWidth
+            gap: 2
+        }
+    }
+
+    Component {
+        id: cellsStyle
+
+        SpectrumCells {
+            barWidth: surface.barWidth
+        }
     }
 
     StateReport {
@@ -96,6 +127,57 @@ Item {
 
     // The mixer takes the room it needs and no more, up to half the surface.
     // Below that the spectrum would stop being the resting surface.
+    // Top right of the body, clear of the border and of the controls that sit
+    // on it. Dropped rather than shrunk when the surface is too narrow to hold
+    // it: a truncated announcement is not an announcement.
+    Text {
+        id: toast
+
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.margins: Math.round(Theme.fontBaseSize * 0.4)
+
+        text: surface.toastText
+        color: Theme.muted
+        font.family: Theme.fontFamily
+        font.pixelSize: Theme.fontBaseSize
+        opacity: 0
+        visible: implicitWidth <= surface.width
+
+        // Driven by a counter, not by the text: raising the same message twice
+        // running must show it twice, and an unchanged property emits nothing.
+        Connections {
+            target: surface
+
+            function onToastSeqChanged() {
+                toastAnim.restart();
+            }
+        }
+
+        SequentialAnimation {
+            id: toastAnim
+
+            running: false
+
+            PropertyAction {
+                target: toast
+                property: "opacity"
+                value: 1
+            }
+
+            PauseAnimation {
+                duration: 1200
+            }
+
+            NumberAnimation {
+                target: toast
+                property: "opacity"
+                to: 0
+                duration: 400
+            }
+        }
+    }
+
     StreamPanel {
         id: panel
 

@@ -14,7 +14,18 @@ Item {
 
     property var points: []
     property int barWidth: 10
+    property string spectrumStyle: "bars"
     property bool streamsVisible: false
+
+    property string toastText: ""
+    property int toastSeq: 0
+
+    // Framed chrome draws the spectrum's controls, so it does not need the
+    // window to announce a change this shell already shows.
+    readonly property bool showsSpectrumControls: true
+
+    signal densityStepped(int delta)
+    signal styleStepped(int delta)
 
     property bool audioServiceReady: true
     property bool processingReady: true
@@ -102,6 +113,29 @@ Item {
 
         legendItems: shell.legendItems
 
+        // Top right, on the line, btop-style. These are the spectrum's own
+        // adjustments rather than actions on the audio, which is why they sit
+        // apart from the legend and carry a value instead of a key hint.
+        topRightContent: Row {
+            spacing: Math.round(Theme.fontBaseSize * 1.2)
+
+            Stepper {
+                value: shell.barWidth + "px"
+                values: ["60px"]
+
+                onDecremented: shell.densityStepped(-1)
+                onIncremented: shell.densityStepped(1)
+            }
+
+            Stepper {
+                value: shell.spectrumStyle
+                values: ["bars", "cells"]
+
+                onDecremented: shell.styleStepped(-1)
+                onIncremented: shell.styleStepped(1)
+            }
+        }
+
         Surface {
             id: surface
 
@@ -109,7 +143,10 @@ Item {
 
             points: shell.points
             barWidth: shell.barWidth
+            spectrumStyle: shell.spectrumStyle
             streamsVisible: shell.streamsVisible
+            toastText: shell.toastText
+            toastSeq: shell.toastSeq
             audioServiceReady: shell.audioServiceReady
             processingReady: shell.processingReady
             spectrumFlowing: shell.spectrumFlowing

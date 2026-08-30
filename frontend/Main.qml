@@ -173,6 +173,17 @@ Window {
     // this is signal density rather than zoom.
     property int barWidth: 10
 
+    // How the spectrum is drawn. Two genuinely different pictures rather than
+    // variations on one: filled pixel bars, and a character grid built from the
+    // U+2581..U+2588 block elements, which follows `omarchy font set`. Both
+    // read the same fixed dB window, so switching cannot look like the signal
+    // changing.
+    readonly property var spectrumStyles: ["bars", "cells"]
+
+    property int spectrumStyleIndex: 0
+
+    readonly property string spectrumStyle: root.spectrumStyles[root.spectrumStyleIndex]
+
     // Reveal on intent: the mixer is not a mode the window is in, it is a
     // thing the user asked to see. Hiding it changes nothing in the graph.
     property bool streamsVisible: false
@@ -200,6 +211,9 @@ Window {
             item.processingReady = Qt.binding(() => root.processingReady);
             item.spectrumFlowing = Qt.binding(() => root.spectrumFlowing);
             item.signalPresent = Qt.binding(() => root.signalPresent);
+            item.spectrumStyle = Qt.binding(() => root.spectrumStyle);
+            item.toastText = Qt.binding(() => root.toastText);
+            item.toastSeq = Qt.binding(() => root.toastSeq);
             item.streamCount = Qt.binding(() => root.streamCount);
 
             // Bare mode draws no legend and no title, and declares neither
@@ -210,6 +224,15 @@ Window {
 
             if (item.effectsPresent !== undefined)
                 item.effectsPresent = Qt.binding(() => root.effectsPresent);
+
+            // The controls and the keys are one path. A shell that draws
+            // steppers reports what was pressed; deciding what a step means
+            // stays with the window, which is where the keyboard decides it.
+            if (item.densityStepped !== undefined)
+                item.densityStepped.connect(keyLayer.stepDensity);
+
+            if (item.styleStepped !== undefined)
+                item.styleStepped.connect(keyLayer.stepStyle);
         }
     }
 
@@ -287,18 +310,33 @@ Window {
             }
         },
         {
+            // A tweak, and weighted as one. The mixer and the equalizer are
+            // what this window is for; which chrome it wears is not, so it is
+            // the first thing the legend gives up as the window narrows.
             "keys": [Qt.Key_F, Qt.Key_1, Qt.Key_2],
             "label": "[f]rame",
-            "priority": 60,
+            "priority": 30,
             "advertised": true,
             "action": key => keyLayer.setShell(key === Qt.Key_F ? (root.shellIndex + 1) % root.shells.length : Math.min(root.shells.length - 1, key - Qt.Key_1))
         },
         {
-            "keys": [Qt.Key_Minus, Qt.Key_BracketLeft, Qt.Key_Plus, Qt.Key_Equal, Qt.Key_BracketRight],
-            "label": "[-/+] density",
-            "priority": 40,
-            "advertised": true,
-            "action": key => keyLayer.setBarWidth(root.barWidth + (key === Qt.Key_Minus || key === Qt.Key_BracketLeft ? -2 : 2))
+            // Not advertised, because framed chrome draws it as a control with
+            // its value on screen. A legend entry would restate a number the
+            // window is already showing, and `project.md` gives up restated
+            // values before anything else.
+            "keys": [Qt.Key_Minus, Qt.Key_Plus, Qt.Key_Equal],
+            "priority": 0,
+            "advertised": false,
+            "action": key => keyLayer.stepDensity(key === Qt.Key_Minus ? -1 : 1)
+        },
+        {
+            // Bracket keys, beside the density pair on the keyboard, because
+            // they are the same kind of adjustment. They used to be aliases for
+            // density itself, which spent two keys saying one thing.
+            "keys": [Qt.Key_BracketLeft, Qt.Key_BracketRight],
+            "priority": 0,
+            "advertised": false,
+            "action": key => keyLayer.stepStyle(key === Qt.Key_BracketLeft ? -1 : 1)
         },
         {
             "keys": [Qt.Key_Q],
@@ -383,9 +421,24 @@ Window {
         anchors.fill: parent
         focus: true
 
-        function setBarWidth(px) {
-            root.barWidth = Math.max(2, Math.min(60, px));
-            root.showToast(root.barWidth + " px bars");
+        // Announced only where nothing shows it. Framed chrome draws both
+        // values permanently, so a toast there would restate what is on screen;
+        // bare chrome draws neither, so it still needs telling.
+        function announceAdjustment(msg) {
+            if (shellLoader.item === null || !shellLoader.item.showsSpectrumControls)
+                root.showToast(msg);
+        }
+
+        function stepDensity(delta) {
+            root.barWidth = Math.max(2, Math.min(60, root.barWidth + delta * 2));
+            keyLayer.announceAdjustment(root.barWidth + "px");
+        }
+
+        function stepStyle(delta) {
+            const n = root.spectrumStyles.length;
+
+            root.spectrumStyleIndex = (root.spectrumStyleIndex + delta + n) % n;
+            keyLayer.announceAdjustment(root.spectrumStyle);
         }
 
         // The mixer lives inside whichever chrome is loaded, but the window
@@ -430,45 +483,13 @@ Window {
 
     property string toastText: ""
 
+    // Bumped on every announcement, because the surface that draws it cannot
+    // watch the text: raising the same message twice running must show it
+    // twice, and an unchanged property emits no signal.
+    property int toastSeq: 0
+
     function showToast(msg) {
         root.toastText = msg;
-        toastAnim.restart();
-    }
-
-    Text {
-        id: toast
-
-        anchors.right: parent.right
-        anchors.top: parent.top
-        anchors.margins: 6
-
-        text: root.toastText
-        color: Theme.muted
-        font.family: Theme.fontFamily
-        font.pixelSize: Theme.fontBaseSize
-        opacity: 0
-    }
-
-    SequentialAnimation {
-        id: toastAnim
-
-        running: false
-
-        PropertyAction {
-            target: toast
-            property: "opacity"
-            value: 1
-        }
-
-        PauseAnimation {
-            duration: 1200
-        }
-
-        NumberAnimation {
-            target: toast
-            property: "opacity"
-            to: 0
-            duration: 400
-        }
+        root.toastSeq++;
     }
 }

@@ -209,6 +209,15 @@ among product modes. Bar density is the first instance: the spectrum resamples
 to however many bars fit at a target bar width, so a wider window shows more of
 the signal instead of a stretched copy of the same picture.
 
+The spectrum has two appearances, and they are the only two: **bars**, filled
+pixel columns, and **cells**, a character grid built from the U+2581..U+2588
+block elements the way cava and btop draw one. Cells follow `omarchy font set`,
+since a character grid is measured in whatever `monospace` resolves to. Both
+read the same fixed dB window, so switching between them must never look like
+the signal changed. Density applies to both — a cell grid rounds it to a whole
+number of cells per column, which is coarse, and coarse is the honest answer
+rather than a control that shows a value it is ignoring.
+
 Two rules govern how the layout gives things up as it narrows:
 
 - **Chrome yields before signal.** Labels, legends, restated values and
@@ -247,8 +256,27 @@ hidden for being too small, and the window oscillates between the two answers.
 Pinned positions in framed mode:
 
 - **Top left:** identity and state.
+- **Top right, on the line:** the spectrum's own adjustments, drawn btop-style
+  as a value with a minus to its left and a plus to its right. They sit in the
+  border, which breaks around them exactly as it breaks around the title, so
+  they cost no signal height.
 - **Bottom right:** actions and menus.
 - **Centre:** capability and signal state, when there is something to report.
+
+**An adjustment with a permanent value does not also announce itself.** A
+control that shows what it is set to makes a transient message a restatement,
+and restated values are the first thing the layout gives up. Bare chrome draws
+none of these controls, so there it *does* announce — the rule is that exactly
+one of the two says it.
+
+**Announcements are drawn inside the border, never across it.** They belong to
+the presentation space, not to the window: anchored to the window they land on
+the frame's linework, which reads as damage.
+
+Not everything the keyboard reaches is equal. The mixer and the equalizer are
+what the window is for; chrome mode and the spectrum's appearance are tweaks,
+and the legend gives up tweaks first. An adjustment that has become an on-screen
+control leaves the legend entirely rather than restating itself there.
 
 The tiers below are a *sketch* — useful names for regions of a continuum, not
 breakpoints to implement:
@@ -350,7 +378,8 @@ than one that stops being mentioned.
 | `s` | show or hide the mixer |
 | `b` | global processing bypass — advertised only while the output chain holds an effect |
 | `f`, `1`, `2` | chrome mode |
-| `-` / `+`, `[` / `]` | bar density |
+| `-` / `+` | bar density — shown as a control in framed chrome, not in the legend |
+| `[` / `]` | spectrum style — as above; the bracket keys sit beside the density pair |
 | `Escape` | dismiss transient controls; never stops audio |
 | `q`, `Ctrl+W` | quit |
 

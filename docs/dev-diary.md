@@ -22,6 +22,102 @@ happens — this remains the account of record. Detailed evidence lives in
 
 ---
 
+## 2026-08-30 (night, sixth pass) — Controls on the line, and a legend that ranks
+
+**Commit:** _(backfilled)_
+
+Three complaints, one shape: the window treated everything as equally important
+and drew its announcements wherever there was room.
+
+### The toast was anchored to the wrong thing
+
+It was a child of the `Window`, at `anchors.top` with a 6 px margin, so it knew
+nothing about the frame and landed squarely on the border line. It now lives in
+`Surface`, which both chrome modes contain — so in framed chrome it lands inside
+the border, and in bare chrome, where there is no border, it lands at the
+window's edge. One implementation, right in both.
+
+It is driven by a counter rather than by its text. An unchanged property emits
+no signal, so raising the same message twice running would have shown it once.
+
+### Density and style are controls, not legend entries
+
+btop draws its poll interval in the top-right of a box as a value with a minus
+and a plus around it. `Frame` already knew how to break its top edge around the
+title, so breaking it a second time at the right was a small change — the edge
+now walks a sorted list of gaps rather than special-casing one, and a third
+would cost nothing.
+
+That changes what the legend is for. A control showing `- 10px +` permanently
+makes `[-/+] density` a restatement of a number already on screen, and
+`project.md` gives up restated values before anything else. So density and style
+left the legend entirely. They also stopped raising toasts — but only in framed
+chrome, which draws the readout; bare chrome draws neither, so it still
+announces. Exactly one of the two says it.
+
+The bracket keys used to be aliases for `-` and `+`, which spent two keys saying
+one thing. They now step style, and sit beside the density pair on the keyboard
+because they are the same kind of adjustment.
+
+### The legend ranks now
+
+Streams and the equalizer are what this window is for. Chrome mode is a tweak,
+so `[f]rame` drops from priority 60 to 30 and is the first thing given up as the
+window narrows. The equalizer is not advertised because it does not exist yet —
+the same rule that took bypass out of the legend an hour earlier.
+
+### The cell renderer came back, and brought its bug with it
+
+`SpectrumCells.qml` was deleted as dead code earlier tonight and restored from
+`d1cf525^` for the style option. It needed the truthful-level fix the bar
+renderer got — it was still rescaling each frame to its own min and max — and it
+turned out to be carrying the *other* bug from earlier tonight too:
+
+```
+CELLS width=710 block=7.1875 cols=66      # 710 / 7.1875 = 98, not 66
+```
+
+`cellWidth` called `fm.advanceWidth()` and nothing else, so it captured no
+dependency, froze at whatever the default font measured before `Theme` was
+applied — 10.8 px against a real 7.2 — and never re-evaluated. The grid asked
+for two thirds of the columns that fit and drew a spectrum that stopped short of
+the right edge, which reads as missing signal rather than as a bug. Same fix as
+`StreamPanel` and `ShellFramed`: read `fm.font` in the binding.
+
+Worth noting how it was found. The file was restored from a commit *before* the
+fix for this existed, so it arrived pre-broken, and it looked plausible on
+screen — a spectrum that ends early is exactly what quiet high frequencies look
+like. Measuring the three numbers took one instrumented run and ended the
+guessing immediately.
+
+### Density had to become real in cells mode
+
+With the control drawn, `- 10px +` was showing a value the cell renderer ignored
+entirely: it computed columns from the font's cell size and never read
+`barWidth`. A control that displays a number it does not act on is the same
+failure as the bypass key, so cells now round density to a whole number of cells
+per column. The steps are coarse — 1, 1, 2, 2, 3 — which is what a character
+grid can honestly offer.
+
+### Verified
+
+Framed chrome at 760x280 with audio playing: the steppers sit in the top edge
+with the line broken around them, the legend reads `[s]treams [f]rame [q]uit`,
+`]` switches to cells and the readout follows, `+` widens the columns in both
+styles, and `b` puts `no effects to bypass` inside the border rather than across
+it. Bare chrome draws no controls and still announces `22px` on a density
+change. No QML errors in a debug run.
+
+### Still open
+
+Milestone 3's remaining coverage is unchanged: browser and game streams, a
+filter-chain sink for speaker-tuning coexistence, and the mixer's on-screen
+display. The steppers are drawn but their behaviour under a narrow window has
+not been swept — the top edge now carries two labels that must both fit, and
+nothing yet drops one when they cannot.
+
+---
+
 ## 2026-08-30 (night, fifth pass) — Refusing the loop
 
 **Commit:** `0bd4ec2`

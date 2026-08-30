@@ -95,6 +95,11 @@ Item {
     // Children go inside the border.
     default property alias content: body.data
 
+    // Sits on the top edge at the right, and the line breaks around it exactly
+    // as it does around the title. Given no children it takes no width and the
+    // edge runs unbroken, so a shell that draws no controls pays nothing.
+    property alias topRightContent: topRight.data
+
     TextMetrics {
         id: titleMetrics
 
@@ -149,10 +154,27 @@ Item {
 
             // Gaps in the top and bottom edges where the labels sit. The line
             // stops short and resumes, rather than the label painting over it.
-            const tg = frame.title.length > 0 ? {
-                "a": frame.labelInset - frame.labelPad,
-                "b": frame.labelInset + titleMetrics.width + frame.labelPad
-            } : null;
+            //
+            // The top edge carries two: the title at the left and whatever the
+            // shell put at the right. They are walked in order rather than
+            // special-cased, so a third would cost nothing.
+            const top = [];
+
+            if (frame.title.length > 0) {
+                top.push({
+                    "a": frame.labelInset - frame.labelPad,
+                    "b": frame.labelInset + titleMetrics.width + frame.labelPad
+                });
+            }
+
+            if (topRight.width > 0) {
+                top.push({
+                    "a": frame.width - frame.labelInset - topRight.width - frame.labelPad,
+                    "b": frame.width - frame.labelInset + frame.labelPad
+                });
+            }
+
+            top.sort((p, q) => p.a - q.a);
             const bg = frame.legend.length > 0 ? {
                 "a": frame.labelInset - frame.labelPad,
                 "b": frame.labelInset + legendMetrics.width + frame.labelPad
@@ -163,12 +185,26 @@ Item {
             ctx.lineCap = "butt";
             ctx.beginPath();
 
-            // Top edge, broken around the title.
+            // Top edge, broken around each label in turn. A gap that would
+            // reach past the corner is dropped rather than drawn, since a
+            // break with no line after it is just a missing edge.
             ctx.moveTo(x0 + r, y0);
-            if (tg && tg.b < x1 - r) {
-                ctx.lineTo(Math.max(x0 + r, tg.a), y0);
-                ctx.moveTo(tg.b, y0);
+
+            let cursor = x0 + r;
+
+            for (const g of top) {
+                if (g.b >= x1 - r)
+                    continue;
+
+                const a = Math.max(cursor, g.a);
+
+                if (a > cursor)
+                    ctx.lineTo(a, y0);
+
+                ctx.moveTo(g.b, y0);
+                cursor = g.b;
             }
+
             ctx.lineTo(x1 - r, y0);
             ctx.arcTo(x1, y0, x1, y0 + r, r);
 
@@ -202,6 +238,18 @@ Item {
         function onTopInsetChanged() { border.requestPaint(); }
         function onBottomInsetChanged() { border.requestPaint(); }
         function onLineColorChanged() { border.requestPaint(); }
+    }
+
+    Item {
+        id: topRight
+
+        x: frame.width - frame.labelInset - width
+        y: frame.topInset + frame.thickness / 2 - height / 2
+
+        width: childrenRect.width
+        height: childrenRect.height
+
+        onWidthChanged: border.requestPaint()
     }
 
     Text {
