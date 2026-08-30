@@ -24,7 +24,7 @@ happens — this remains the account of record. Detailed evidence lives in
 
 ## 2026-08-30 (afternoon) — The blocklist key, global bypass, and how to see anything
 
-**Commit:** _pending_
+**Commit:** `b837fc4`
 
 Two of the three things the last session left at the top of the list. The third
 — the responsive test milestone 2 actually asks for — is still not done, and
