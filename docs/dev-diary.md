@@ -24,7 +24,7 @@ happens — this remains the account of record. Detailed evidence lives in
 
 ## 2026-08-30 (night) — Cleanup pass over the milestone-2/3 frontend
 
-**Commit:** `PENDING`
+**Commit:** `9d3f0df`
 
 A quality review of the QML added over the day, on four angles at once: reuse,
 simplification, efficiency, altitude. Findings that reached the same conclusion
