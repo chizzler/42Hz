@@ -24,7 +24,7 @@ happens — this remains the account of record. Detailed evidence lives in
 
 ## 2026-08-30 (night, second pass) — A spectrum that tells the truth about level
 
-**Commit:** _(backfilled)_
+**Commit:** `d1cf525`
 
 A code and status review turned up five things. The first was the interesting
 one, and it was not a layout bug or a theme bug: the spectrum had never been
