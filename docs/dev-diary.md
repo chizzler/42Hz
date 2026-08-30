@@ -24,7 +24,7 @@ happens — this remains the account of record. Detailed evidence lives in
 
 ## 2026-08-30 (night, third pass) — 42Hz was dying every time PipeWire restarted
 
-**Commit:** _(backfilled)_
+**Commit:** `76fe070`
 
 Planning milestone 4 turned up two things worth more than the milestone did.
 
