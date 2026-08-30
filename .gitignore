@@ -10,3 +10,6 @@ upstream/
 
 # Local Claude Code overrides (settings.json is shared; .local.json is not)
 .claude/settings.local.json
+
+# Responsive sweep captures
+.sweep/

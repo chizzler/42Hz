@@ -5,7 +5,7 @@
 - **Public name:** 42Hz
 - **Executable:** `42hz`
 - **Working directory:** `~/Work/42Hz/`
-- **Status:** milestone 1 complete; milestones 2 and 3 in progress. Milestone 2's stated work is built but its responsive verification across geometries is outstanding, so the milestone is not closed. Progress, verification and open threads are tracked in [`docs/dev-diary.md`](docs/dev-diary.md), not here.
+- **Status:** milestone 1 complete; milestones 2 and 3 in progress. Milestone 2's responsive verification has been run: bar density, bare mode and every geometry at 480 px and wider are correct, and framed chrome fails below that, so the milestone is not closed. Progress, verification and open threads are tracked in [`docs/dev-diary.md`](docs/dev-diary.md), not here.
 
 ### How to read this document
 
@@ -134,7 +134,7 @@ to rediscover the expensive way:
 
 - **A node name may not begin with a digit.** The core resolves a client's `target.object` by attempting a numeric parse first, and its `str_to_num` helper accepts a partial `std::from_chars` result, so a leading-digit name is misread as a serial and the stream is silently dropped from the model while remaining audible. Handled in the patch inventory for `target.object`; the shared helper is deliberately left lenient. More generally, a rename is not cosmetic when the new name has a different *shape* — leading digits, length, character class — from the old one.
 
-Measured coupling and the patch inventory are recorded in `docs/spike-01-frontend-coupling.md`; first execution of the derived core in `docs/spike-02-first-run.md`; identity reassignment in `docs/spike-03-identity.md`.
+Measured coupling and the patch inventory are recorded in `docs/spike-01-frontend-coupling.md`; first execution of the derived core in `docs/spike-02-first-run.md`; identity reassignment in `docs/spike-03-identity.md`; responsive behaviour across geometries in `docs/spike-04-responsive.md`.
 
 42Hz is a derived application, not a remote control for an installed EasyEffects executable. A release build contains the EasyEffects-derived core it was tested against; EasyEffects does not need to be installed or running.
 
@@ -193,6 +193,36 @@ breakpoints to implement:
 Clicking or invoking a keyboard action reveals the next relevant control. Escape
 dismisses transient controls without stopping audio. A second launch presents
 the existing instance.
+
+### Verifying responsive behaviour
+
+Responsive claims are verified by capture, not by inspection, and not on a
+desktop that is in use. A tiling parent undoes every resize within a second,
+focus-follows-mouse hands keystrokes to whatever is under the pointer, and a
+screenshot catches whichever window is on top.
+
+`spike/nested-session.sh` starts a second Hyprland on its own Wayland socket
+from a generated config, and `spike/geometry-sweep.sh` drives a capture sweep
+through it. The nested session reads no user configuration and writes none.
+
+Geometry is set on the *window*, never on the nested output. The output is a
+surface in the parent session, so the parent's layout decides its size and a
+`monitor` rule does not; a floating window sized with
+`dispatch resizewindowpixel exact` is reliable to the pixel. The output is a
+ceiling, geometries are clamped to it, and a capture is labelled with the size
+actually granted rather than the size requested.
+
+Three properties of the observation corrupt evidence quietly, in the same way
+the Release build and the logging routing do:
+
+- **A Hyprland config error is drawn into the output and reserves space in it.**
+  One invalid key produces a banner across the top of every capture and a
+  monitor `reserved` region that silently shrinks every tiled window.
+  `Hyprland --verify-config -c` is the check.
+- **`grim` captures the nested pointer**, which the nested compositor draws into
+  its own output. `cursor:inactive_timeout` removes it.
+- **`dispatch fullscreen 0` enters fullscreen; it does not leave it.**
+  `fullscreenstate` names a state rather than toggling toward one.
 
 ### Keyboard
 

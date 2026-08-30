@@ -22,6 +22,134 @@ happens — this remains the account of record. Detailed evidence lives in
 
 ---
 
+## 2026-08-30 (late) — A nested compositor, and the responsive test finally run
+
+**Commit:** _(backfilled)_
+
+Three sessions had ended with "the responsive test is still not done". The last
+one worked out why: it cannot be done on a desktop that is in use. This session
+built the thing that makes it possible and then ran it, and the answer is that
+milestone 2's headline behaviour is right and its chrome is not.
+
+Evidence and measured thresholds are in
+[`spike-04-responsive.md`](spike-04-responsive.md); this is what it cost and
+what it means.
+
+### The harness
+
+`spike/nested-session.sh` starts a second Hyprland on its own Wayland socket
+with a generated config, and `spike/geometry-sweep.sh` drives 21 captures
+through it. Both are new. The nested session reads no user configuration and
+writes none — everything it has lives in `$XDG_RUNTIME_DIR` and is deleted on
+`stop`.
+
+Headless would have been better and is not available: aquamarine here has no
+backend-selection variable and Hyprland has no `--headless`, so the nested
+session is a window on the user's screen whether or not that is wanted.
+
+**Sizing the nested output does not work, and sizing the window does.** The
+first design set the output size and let one tiled window fill it. The output
+is a surface in the *parent* session, so the parent's layout decides how big it
+is: the same `start 1280x720` produced 1226x688, 1788x688 and 1223x688 across
+three runs, depending only on what else was on the parent's workspace. Floating
+the window inside the nested session and using `resizewindowpixel exact` landed
+on the requested pixel in all 21 cases. So the output is a ceiling, geometries
+are clamped to it, and every capture is labelled with the size actually granted
+rather than the size asked for — which is the only reason the drift above was
+noticed rather than silently mislabelled.
+
+**`hyprctl dispatch` works.** The afternoon entry recorded that this Hyprland's
+dispatchers are a Lua API and `hyprctl dispatch` cannot reach them. Six
+dispatchers were driven through plain `hyprctl dispatch` here against a nested
+instance of the same binary. Whatever went wrong that afternoon, that is not
+the explanation, and the `hl.dsp` Lua route is not required. The earlier finding
+should not be relied on.
+
+### Three things that quietly corrupt evidence
+
+Each of these produced a plausible, wrong picture before it was caught, and all
+three are properties of the *observation*, not of 42Hz — the same category as
+the Release-build and logging traps already in `project.md`.
+
+**A Hyprland config error is drawn into the output.** One invalid key
+(`misc:vfr`, removed upstream) put an error banner across the top of every
+full-height capture *and* reserved 26 px of the monitor, which had been silently
+shrinking every tiled window since the session started — that unexplained
+`reserved: [0, 26, 0, 0]` was this, not a layer surface.
+`Hyprland --verify-config -c` is the check, and the harness now generates a
+config that passes it.
+
+**`grim` captures the nested pointer**, because the nested compositor draws its
+own cursor into its own output. `cursor:inactive_timeout = 1` removes it.
+
+**`dispatch fullscreen 0` enters fullscreen rather than leaving it**, so the
+tiled and fullscreen captures came out holding each other's contents under each
+other's labels. `fullscreenstate` names the state instead of toggling toward it.
+
+Two smaller ones: `pkill -f streams.sh` matched the shell running it and killed
+the session's own bash; and `nest status | head -1` exits the sweep under
+`set -o pipefail`, because `head` closes the pipe and the harness takes SIGPIPE.
+
+### The result: the density is right, the chrome is not
+
+**Bar density follows window width correctly across the entire range**, which
+is the responsive behaviour the milestone was mainly asking about. 1200x120 is
+a dense wide spectrum and 240x600 a sparse narrow one, and neither is a
+stretched copy of the other. Bare mode is correct at every size tested down to
+160x60. Tiled and fullscreen are clean. Everything at 480 px and wider is
+sound.
+
+Below 480 px the framed chrome fails, in four separate places, and they share
+one cause: **every piece of chrome is authored at one size.**
+
+- The **legend** is a fixed string. It overruns the frame below ~460 px, is
+  clipped mid-word, and takes the bottom border with it.
+- The **state report**'s detail line overflows at 200 px and collides with the
+  frame's own title at 160x60.
+- **Mixer rows** lay out at fixed proportions, so the meter is drawn through the
+  stream name below ~320 px — and at 1223 px the same proportions leave the four
+  columns stranded at 2%, 33%, 64% and 87%.
+- At 160x60 framed, **the spectrum is not drawn at all**: title row, legend row
+  and insets consume the whole window.
+
+That last one is `project.md`'s "an empty window is not an acceptable report of
+anything", reached from a direction the requirement did not anticipate. The
+window is not empty because a capability is missing. It is empty because the
+chrome took the room and the signal yielded first. Whatever the fix is, the
+priority has to invert: chrome drops, signal stays.
+
+The legend defect is also the keymap-drift problem already on the list, seen
+from the layout side. The legend cannot shorten itself because it is a literal
+rather than a list of bindings with priorities. Publishing the binding table as
+data that the handler and the legend both read fixes the drift and gives the
+legend something to drop. That is now the highest-value single change in the
+frontend, and it is the same change either way.
+
+### Verified
+
+21 captures across framed and bare, mixer open and closed, 160x60 to 1223x688,
+plus tiled and fullscreen, with two live broadband streams. Thresholds bracketed
+at 360/400/440/480 for the legend and 260/300/340/380 for the mixer row.
+Empty-state behaviour captured separately at five widths with no audio playing.
+
+### Still open
+
+**Milestone 2 does not close.** Its verification is now done rather than
+outstanding, which is the change; what it found is four defects, all in framed
+chrome below 480 px, none fixed. The milestone closes when they are.
+
+**Light themes and live theme switching are still unlooked-at**, and milestone 2
+asks for continuous theme adaptation. The harness does not help here: theme
+state is machine-global, so verifying it means changing the theme on the user's
+actual desktop.
+
+Unchanged: `ShellFramed.qml` draws its legend bottom left where `project.md`
+says bottom right; `SpectrumCells.qml` is still built and referenced by
+nothing; `spike/` is still misnamed, and now holds two more things that are not
+spikes; the repo is still on `master`.
+
+---
+
 ## 2026-08-30 (afternoon) — The blocklist key, global bypass, and how to see anything
 
 **Commit:** `b837fc4`
