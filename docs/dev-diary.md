@@ -24,7 +24,7 @@ happens — this remains the account of record. Detailed evidence lives in
 
 ## 2026-08-31 — 42Hz was moving Omarchy's speaker tuning, and getting away with it
 
-**Commit:** _(backfilled)_
+**Commit:** `d3e217d`
 
 Milestone 3's speaker-tuning coexistence, which turned out to be a defect rather
 than a check.
