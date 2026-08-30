@@ -165,7 +165,8 @@ to rediscover the expensive way:
 
 - **A node name may not begin with a digit.** The core resolves a client's `target.object` by attempting a numeric parse first, and its `str_to_num` helper accepts a partial `std::from_chars` result, so a leading-digit name is misread as a serial and the stream is silently dropped from the model while remaining audible. Handled in the patch inventory for `target.object`; the shared helper is deliberately left lenient. More generally, a rename is not cosmetic when the new name has a different *shape* — leading digits, length, character class — from the old one.
 
-Measured coupling and the patch inventory are recorded in `docs/spike-01-frontend-coupling.md`; first execution of the derived core in `docs/spike-02-first-run.md`; identity reassignment in `docs/spike-03-identity.md`; responsive behaviour across geometries in `docs/spike-04-responsive.md`.
+Measured coupling and the patch inventory are recorded in `docs/spike-01-frontend-coupling.md`; first execution of the derived core in `docs/spike-02-first-run.md`; identity reassignment in `docs/spike-03-identity.md`; responsive behaviour across geometries in `docs/spike-04-responsive.md`; the
+design for recovering from a PipeWire restart in `docs/spike-05-reconnection.md`.
 
 42Hz is a derived application, not a remote control for an installed EasyEffects executable. A release build contains the EasyEffects-derived core it was tested against; EasyEffects does not need to be installed or running.
 

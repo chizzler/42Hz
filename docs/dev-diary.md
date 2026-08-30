@@ -117,10 +117,45 @@ abort logged. The prototype under `upstream/` was never relied on.
 Default sink never left the headset across four PipeWire restarts, and 42Hz was
 restarted afterwards so its virtual sink came back.
 
+### The reconnection design, and why it stopped at a design
+
+Reconnection was the chosen next step, and it turned out to be on milestone 3's
+critical path rather than beside it: "safe recovery after graph failure" is part
+of that milestone's definition of done, so M3 cannot close until this exists.
+
+The design is in [`spike-05-reconnection.md`](spike-05-reconnection.md). The
+constraint that shapes all of it is that the audio stack cannot be thrown away
+and rebuilt: `StreamOutputEffects` hands QML a static `singletonInstance` with
+C++ ownership, and upstream's own comment says "We cannot replace it". Every
+object must keep its identity and rebuild its PipeWire state in place, which is
+what makes this large. One thing helps — the sub-managers hold `pw_core*&` by
+reference, so they follow a reassignment for free.
+
+The seam is `pw_manager.cpp:335`, and the constructor's three parts separate
+cleanly: Qt wiring (once), thread loop (once), connection (reconnectable). One
+`connect(db::Manager…)` sits inside the reconnectable range and has to be
+hoisted first or every reconnection doubles a handler.
+
+Stopped there deliberately. It is 200+ lines across four files, in the least
+forgiving part of the core — tearing down a connection the server already
+dropped, where the failure mode is a use-after-free that presents as the process
+disappearing, which is precisely the symptom this session just removed. And a
+partial result is worse than none: a manager that reconnects while the plugin
+filters stay stale gives silently broken audio instead of an honest report.
+Better to execute it from a written design than to half-land it at the end of a
+long session.
+
+One thing to decide before writing it: **upstream has the identical bug**, from
+the identical code. This is the clearest upstream-contribution candidate the
+project has produced, and the alternative is carrying the riskiest patch in the
+inventory across every version bump. Carry or contribute is a choice worth
+making deliberately.
+
 ### Still open
 
 The two gaps above — reconnection, and startup with no service — are now written
-into `project.md` as open rather than as one vague sentence.
+into `project.md` as open rather than as one vague sentence, and reconnection
+has a design.
 
 A capture of the post-restart window could not be taken: the nested session had
 left the parent's active workspace and screencopy does not run there, which the
