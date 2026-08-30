@@ -22,6 +22,81 @@ happens — this remains the account of record. Detailed evidence lives in
 
 ---
 
+## 2026-08-30 (night, seventh pass) — Teaching the keyboard
+
+**Commit:** _(backfilled)_
+
+The chrome now points at its own keys, and the legend is down to what the window
+is actually for.
+
+### The hints carry the accent
+
+`[s]treams` draws its `[s]` in the theme's accent and the rest quiet. The legend
+is measured on the plain string and rendered as `StyledText` with the bracketed
+head wrapped in a `<font>` tag — markup does not change what a glyph is worth,
+so the width logic that shortens the legend is untouched.
+
+Colour at rest, not on hover. A hint that only appears under the pointer teaches
+nobody who is not already using one, and these exist to move people off the
+pointer.
+
+### The steppers now draw the keys they are
+
+They were `-` and `+` on both controls, but style is bound to `[` and `]`, so
+the style control was advertising keys that move the *other* one. It reads
+`[ bars ]` now, which teaches the binding the same way `[s]treams` does. The
+density control was already honest.
+
+### `[f]rame` is documented, not displayed
+
+Chrome mode left the legend. The key works at every size, as every key does; it
+is simply not advertised, and the room belongs to `[e]q` when there is one. That
+leaves `[s]treams  [q]uit`, which is the whole legend until milestone 4.
+
+### Which found the collision the last entry predicted
+
+The previous entry closed with "the top edge now carries two labels that must
+both fit, and nothing yet drops one when they cannot". At 200 px the top edge
+read:
+
+```
+42Hz10px +
+```
+
+The title and the density stepper on top of each other, with the `-` swallowed.
+Chrome must yield before signal, and a component that will not fit is dropped
+whole rather than shrunk, so the pair goes together or not at all — keeping one
+would leave the other's value unreported while the window still looked as though
+it were showing them.
+
+**The fit test is derived from font metrics, not from the controls' geometry**,
+and that is the whole difficulty. A width read back off a hidden item is zero,
+so a test built on it would hide the controls, find room for them, show them
+again, and latch — precisely the oscillation `project.md` already records for
+the chrome floors, arriving from a new direction. `Stepper` therefore exposes a
+`naturalWidth` computed from `FontMetrics`, and `Frame` is *told* its
+top-right width rather than measuring `childrenRect`.
+
+Dropping them brings the announcement back, so the rule holds at every width:
+exactly one of the readout and the toast is speaking.
+
+### Verified
+
+Swept at 200, 240, 280, 340 and 500 px with audio playing. Controls absent below
+the fit, present above it, no collision at any width, and the transition
+monotonic in both directions. At 280 px with the controls dropped, `+` raises
+`12px` in the body; at 340 px with them present, it does not. No binding loops
+and no QML errors in a debug run.
+
+### Still open
+
+Milestone 3's remaining coverage is unchanged: browser and game streams, a
+filter-chain sink for speaker-tuning coexistence, and the mixer's on-screen
+display. The mixer's own rows have not been re-swept since the legend and the
+top edge changed, though neither touches them.
+
+---
+
 ## 2026-08-30 (night, sixth pass) — Controls on the line, and a legend that ranks
 
 **Commit:** `d797903`

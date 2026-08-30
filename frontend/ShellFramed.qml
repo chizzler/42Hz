@@ -20,9 +20,28 @@ Item {
     property string toastText: ""
     property int toastSeq: 0
 
-    // Framed chrome draws the spectrum's controls, so it does not need the
-    // window to announce a change this shell already shows.
-    readonly property bool showsSpectrumControls: true
+    // Only while they are actually on screen. Below the width that holds them
+    // they are dropped, and the window goes back to announcing changes -- the
+    // readout and the announcement are two ways of saying one thing, and
+    // exactly one of them should be saying it.
+    readonly property bool showsSpectrumControls: shell.spectrumControlsFit
+
+    // Air between the title and the controls. Without it they meet, and at
+    // 200 px the top edge read `42Hz10px +`.
+    readonly property real titleGap: Theme.fontBaseSize
+
+    readonly property real controlsWidth: density.naturalWidth + style.naturalWidth + controls.spacing
+
+    // What the top edge has left once the title, the corner and the border's
+    // own insets have taken theirs.
+    readonly property real topEdgeFree: Math.max(0, frame.width - frame.labelInset - shell.titleWidth
+        - frame.labelPad - shell.titleGap - frame.labelInset - frame.radius - frame.thickness)
+
+    // Chrome yields before signal, and a component that will not fit is dropped
+    // whole rather than shrunk to a stub. Both go together or neither does:
+    // keeping one would leave the other's value unreported while the window
+    // still looked as though it were showing them.
+    readonly property bool spectrumControlsFit: shell.topEdgeFree >= shell.controlsWidth
 
     signal densityStepped(int delta)
     signal styleStepped(int delta)
@@ -116,10 +135,17 @@ Item {
         // Top right, on the line, btop-style. These are the spectrum's own
         // adjustments rather than actions on the audio, which is why they sit
         // apart from the legend and carry a value instead of a key hint.
+        topRightWidth: shell.spectrumControlsFit ? shell.controlsWidth : 0
+
         topRightContent: Row {
+            id: controls
+
+            visible: shell.spectrumControlsFit
             spacing: Math.round(Theme.fontBaseSize * 1.2)
 
             Stepper {
+                id: density
+
                 value: shell.barWidth + "px"
                 values: ["60px"]
 
@@ -128,8 +154,13 @@ Item {
             }
 
             Stepper {
+                id: style
+
                 value: shell.spectrumStyle
                 values: ["bars", "cells"]
+
+                decrementGlyph: "["
+                incrementGlyph: "]"
 
                 onDecremented: shell.styleStepped(-1)
                 onIncremented: shell.styleStepped(1)

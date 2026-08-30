@@ -22,6 +22,9 @@ Item {
     property color labelColor: Theme.muted
     property color accentColor: Theme.accent
 
+    // What a key hint is drawn in, wherever one appears.
+    property color keyColor: Theme.accent
+
     property string title: ""
 
     // The legend is a list of bindings, not a sentence. Given a string it can
@@ -72,6 +75,27 @@ Item {
 
     readonly property string legendSeparator: "   "
 
+    // The same legend with its key hints picked out, for rendering. Widths are
+    // still measured on the plain string above -- markup does not change what a
+    // glyph is worth, and measuring the marked-up form would count the tags.
+    //
+    // The bracketed head of a label is the key: `[s]treams` is reached with
+    // `s`. Colouring it is the whole of how a keyboard-first window teaches
+    // itself, so it takes the accent while the word it heads stays quiet.
+    readonly property string legendMarkup: {
+        const key = frame.hex(frame.keyColor);
+
+        return frame.legend.replace(/\[[^\]]*\]/g, m => '<font color="' + key + '">' + m + '</font>');
+    }
+
+    // StyledText wants a colour it can parse, and a QColor stringifies with an
+    // alpha channel that it cannot.
+    function hex(c) {
+        const byte = v => Math.round(v * 255).toString(16).padStart(2, "0");
+
+        return "#" + byte(c.r) + byte(c.g) + byte(c.b);
+    }
+
     // 42Hz's shared line weight, so a frame and a divider cannot end up
     // different thicknesses.
     property real thickness: Theme.lineThickness
@@ -96,9 +120,13 @@ Item {
     default property alias content: body.data
 
     // Sits on the top edge at the right, and the line breaks around it exactly
-    // as it does around the title. Given no children it takes no width and the
-    // edge runs unbroken, so a shell that draws no controls pays nothing.
+    // as it does around the title. The width is told rather than measured: a
+    // shell that hides these controls sets it to zero, and a width read back
+    // off hidden children would be zero anyway, which is how a fit test built
+    // on it would latch.
     property alias topRightContent: topRight.data
+
+    property real topRightWidth: 0
 
     TextMetrics {
         id: titleMetrics
@@ -246,7 +274,7 @@ Item {
         x: frame.width - frame.labelInset - width
         y: frame.topInset + frame.thickness / 2 - height / 2
 
-        width: childrenRect.width
+        width: frame.topRightWidth
         height: childrenRect.height
 
         onWidthChanged: border.requestPaint()
@@ -269,7 +297,8 @@ Item {
 
         x: frame.labelInset
         y: frame.height - frame.bottomInset - frame.thickness / 2 - height / 2
-        text: frame.legend
+        text: frame.legendMarkup
+        textFormat: Text.StyledText
         color: frame.labelColor
         font.family: Theme.fontFamily
         font.pixelSize: Theme.fontBaseSize

@@ -17,6 +17,12 @@ Row {
 
     property string value: ""
 
+    // The glyphs are the keys. Density steps with `-` and `+`, style with `[`
+    // and `]`, and each control draws what you actually press -- a control
+    // showing `-` while the key that moves it is `[` teaches the wrong thing.
+    property string decrementGlyph: "-"
+    property string incrementGlyph: "+"
+
     // Every value this control can show, so the widest can be reserved.
     property var values: []
 
@@ -51,6 +57,18 @@ Row {
         return Math.ceil(widest);
     }
 
+    // What this control needs, derived from the font rather than measured off
+    // the live item. A width read from geometry collapses when the control is
+    // hidden, so whatever decided to hide it would then find room for it again
+    // and the layout would latch -- the same trap the chrome floors avoid.
+    readonly property real naturalWidth: {
+        if (metrics.font.pixelSize <= 0)
+            return 0;
+
+        return Math.ceil(metrics.advanceWidth(stepper.decrementGlyph) + metrics.advanceWidth(stepper.incrementGlyph))
+            + stepper.reservedWidth + 2 * stepper.spacing;
+    }
+
     // Pointer as well as keyboard: `project.md` asks for both at every size,
     // and a control drawn as a pair of buttons that cannot be clicked is a lie
     // about what it is. The hit area overhangs the glyph, since one character
@@ -60,8 +78,10 @@ Row {
 
         signal pressed
 
+        // Accent at rest, not on hover. These are advertisements for a
+        // keyboard, and a hint only visible under the pointer teaches nobody.
         text: glyph
-        color: hit.containsMouse ? Theme.accent : Theme.muted
+        color: hit.containsMouse ? Theme.foregroundBright : Theme.accent
         font.family: Theme.fontFamily
         font.pixelSize: Theme.fontBaseSize
 
@@ -79,7 +99,7 @@ Row {
     }
 
     Arrow {
-        glyph: "-"
+        glyph: stepper.decrementGlyph
 
         onPressed: stepper.decremented()
     }
@@ -95,7 +115,7 @@ Row {
     }
 
     Arrow {
-        glyph: "+"
+        glyph: stepper.incrementGlyph
 
         onPressed: stepper.incremented()
     }

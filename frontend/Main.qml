@@ -310,13 +310,15 @@ Window {
             }
         },
         {
-            // A tweak, and weighted as one. The mixer and the equalizer are
-            // what this window is for; which chrome it wears is not, so it is
-            // the first thing the legend gives up as the window narrows.
+            // Not advertised. The legend is for what this window is for --
+            // the mixer and the equalizer -- and which chrome it wears is not
+            // that. The key works at every size, as every key does; it is
+            // simply documented rather than displayed, and the space it used
+            // to take belongs to `[e]q`.
             "keys": [Qt.Key_F, Qt.Key_1, Qt.Key_2],
             "label": "[f]rame",
             "priority": 30,
-            "advertised": true,
+            "advertised": false,
             "action": key => keyLayer.setShell(key === Qt.Key_F ? (root.shellIndex + 1) % root.shells.length : Math.min(root.shells.length - 1, key - Qt.Key_1))
         },
         {

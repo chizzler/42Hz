@@ -267,7 +267,22 @@ Pinned positions in framed mode:
 control that shows what it is set to makes a transient message a restatement,
 and restated values are the first thing the layout gives up. Bare chrome draws
 none of these controls, so there it *does* announce — the rule is that exactly
-one of the two says it.
+one of the two says it, and it holds at every width, because the controls are
+dropped when the top edge cannot hold them beside the title and the
+announcement comes back at the same moment.
+
+Whether they fit is decided from font metrics, never from the controls' own
+geometry. A width read back off a hidden item is zero, so the test that hid them
+would find room for them again and the window would latch — the same trap the
+chrome floors avoid.
+
+**A key hint is drawn in the accent, wherever it appears.** `[s]treams` carries
+its `s`; a stepper carries the keys that actually move it — `-` and `+` for
+density, `[` and `]` for style. A control drawn with `-` and `+` while the keys
+that move it are `[` and `]` teaches the wrong thing, so the glyphs are the
+bindings rather than generic arrows. This is how a keyboard-first window teaches
+itself, so the colour is at rest, not on hover: a hint only visible under the
+pointer reaches nobody who is not already using one.
 
 **Announcements are drawn inside the border, never across it.** They belong to
 the presentation space, not to the window: anchored to the window they land on
@@ -377,7 +392,7 @@ than one that stops being mentioned.
 |---|---|
 | `s` | show or hide the mixer |
 | `b` | global processing bypass — advertised only while the output chain holds an effect |
-| `f`, `1`, `2` | chrome mode |
+| `f`, `1`, `2` | chrome mode — documented, not advertised; the legend's room belongs to the mixer and the equalizer |
 | `-` / `+` | bar density — shown as a control in framed chrome, not in the legend |
 | `[` / `]` | spectrum style — as above; the bracket keys sit beside the density pair |
 | `Escape` | dismiss transient controls; never stops audio |
