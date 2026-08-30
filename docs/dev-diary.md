@@ -22,6 +22,106 @@ happens — this remains the account of record. Detailed evidence lives in
 
 ---
 
+## 2026-08-30 (night, fourth pass) — The mixer sweep, and a cycle it let through
+
+**Commit:** _(backfilled)_
+
+Milestone 3's verification, run at graph level against the real desktop rather
+than through captures. `pactl` and `pw-link` are better evidence than a
+screenshot here anyway: the claims are about link topology, and the topology is
+directly readable.
+
+Recovery is no longer part of what this milestone asks — the PipeWire connection
+gaps are recorded as inherited upstream limitations and are not being fixed.
+
+### What passed
+
+**A music stream is captured and named.** `mpv` appeared in `42hz_sink` within
+seconds of starting, carrying `application.name = "mpv"` and
+`media.name = "pink20.wav - mpv"` — the two columns the mixer draws.
+
+**Device churn.** Switching the default sink from the headset to HDMI moved
+42Hz's output leg with it: `hz_soe_output_level:output_FL` relinked from
+`alsa_output.…Razer…:playback_FL` to `alsa_output.…hdmi-stereo:playback_FL`. The
+captured stream stayed captured and the process stayed up.
+
+**A virtual sink is not an application stream.** A `module-null-sink` appeared as
+a sink and never as a sink-input, and 42Hz's routing did not react to it.
+
+**42Hz as the default sink does not link to itself.** With `42hz_sink` set
+default, the output leg stayed on the physical headset and nothing fed
+`42hz_sink:playback`. The guard is real and upstream's:
+`stream_output_effects.cpp:202` returns early from `on_link_changed` when
+`defaultOutputDeviceName == ee_sink_node.name`.
+
+The full chain, confirmed and matching what `project.md` describes:
+
+```
+mpv -> 42hz_sink:playback
+42hz_sink:monitor -> hz_soe_spectrum -> hz_soe_output_level -> alsa_output.<device>:playback
+```
+
+That also re-confirms spike-02 from the other direction: the output leg is a
+filter node linked **port to port**, never a sink-input, which is exactly why
+`omarchy-audio-output-sink` cannot resolve it.
+
+### What failed
+
+**A stream whose path returns to 42Hz's own sink is linked, not refused.**
+
+`project.md` states the requirement outright — "refuse to link a stream whose
+path returns to 42Hz's own sink" — and marks it as 42Hz's own, not upstream's:
+"Stock EasyEffects behaves identically, but 42Hz must detect a cycle through its
+own sink rather than link it."
+
+Reproduced in one command. A loopback whose source is 42Hz's own monitor and
+which pins no target:
+
+```
+pactl load-module module-loopback source=42hz_sink.monitor
+```
+
+It was captured straight into the processing sink:
+
+```
+Sink Input #635
+	Sink: 90                      <- 42hz_sink
+	node.name = "output.loopback-458292-13"
+
+42hz_sink:playback_FL
+  |<- output.loopback-458292-13:output_FL
+```
+
+So `42hz_sink.monitor -> loopback -> 42hz_sink:playback -> 42hz_sink.monitor`,
+a closed feedback loop through the processing sink, made by 42Hz itself under
+`processAllOutputs`. The sink went to RUNNING with nothing playing.
+
+The existing guard does not cover this. It compares the default output device
+against 42Hz's sink *by name* — one specific arrangement — and this cycle does
+not go through the default device at all. Nothing walks the stream's own path.
+
+Tested with the headset muted first, since a self-loop can oscillate. Torn down
+immediately; the headset was restored to unmuted at 100% and the default sink to
+the headset.
+
+### Not covered
+
+Browser (`chromium`) and game (`steam`) streams are installed and untested; no
+voice-chat client exists on this machine. The only Omarchy tuning shipped is
+`dell-xps-2026`, which does not match this hardware, so speaker-tuning
+coexistence still has to be tested against a filter-chain sink built by hand.
+And the mixer's *display* of all of the above — names, percentages, flags — is a
+capture job, not a `pw-link` one.
+
+### Still open
+
+**The cycle defect is milestone 3's, and it is ours.** It is a stated 42Hz
+requirement that upstream does not meet by design, which puts it in the same
+category as the `target.object` fix already in the patch inventory rather than
+in the inherited-limitation category the connection gaps went into.
+
+---
+
 ## 2026-08-30 (night, third pass) — 42Hz was dying every time PipeWire restarted
 
 **Commit:** `76fe070`
