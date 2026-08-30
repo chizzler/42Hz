@@ -480,18 +480,27 @@ closed:
   process, unable to go false for the very event it exists to report. Both are
   in the patch inventory, and the value is now written on the object's own
   thread rather than the PipeWire one, since a GUI-thread binding reads it.
-- *Open.* **42Hz does not reconnect.** After a restart it stays up and honestly
-  reports no audio service, but its virtual nodes are gone and nothing rebuilds
-  them. Surviving the loss is not the same as recovering from it, and the
-  requirement below asks for recovery.
-- *Open.* **An unreachable service at startup still aborts.** `pw::Manager`'s
-  constructor calls `util::fatal` when the context connection fails, from
-  `CoreServices` in `main()`, before the QML engine loads. Closing it is larger
-  than it looks: `pw_filter_new()` and `pw_filter_add_port()` dereference the
-  core, so every plugin must be constructible without one, and three spin loops
-  — the virtual-device wait in the constructor, and `connect_to_pw`'s wait on
-  `can_get_node_id` — have no exit when nothing will ever arrive. Until then,
+- *Inherited, not fixed.* **42Hz does not reconnect.** After a restart it stays
+  up and honestly reports no audio service, but its virtual nodes are gone and
+  nothing rebuilds them. Recovery requires a manual restart of 42Hz.
+- *Inherited, not fixed.* **An unreachable service at startup aborts.**
+  `pw::Manager`'s constructor calls `util::fatal` when the context connection
+  fails, from `CoreServices` in `main()`, before the QML engine loads. So
   *application ready* is not a state the window can report.
+
+**These two are upstream defects, and 42Hz does not fix upstream defects.**
+EasyEffects has both, from the same code, and the derivation inherits them. Each
+would take a large, invasive rewrite of the core's connection handling — the
+plugin filters are built against a core they cannot outlive, and three spin
+loops have no exit when nothing will ever arrive — landing in the least
+forgiving part of the derived core and carried across every version bump. That
+is precisely the reinvention this project's architecture exists to avoid.
+
+They are limitations of the release, are documented as such, and are not open
+work. The design, if it is ever wanted, is recorded in
+`docs/spike-05-reconnection.md`. What 42Hz owes here is honesty rather than
+recovery: the loss of the audio service is reported and never mistaken for
+silence, which it now is.
 
 Startup proceeds in stages:
 
@@ -598,7 +607,7 @@ one cost, is recorded in [`docs/dev-diary.md`](docs/dev-diary.md).
    Build a normal themed Wayland window whose spectrum and essential state remain useful across representative tiled, floating, narrow, wide, and fullscreen geometries. Establish stable application identity, single-instance presentation, keyboard navigation, and capability-specific empty states. Adapt continuously to the active Omarchy theme.
 
 3. **Application mixer**  
-   Expose live playback streams with supported volume, mute, and processing-inclusion controls. Verify game, voice-chat, browser, and music streams; device churn; speaker tuning; virtual sinks; and safe recovery after graph failure.
+   Expose live playback streams with supported volume, mute, and processing-inclusion controls. Verify game, voice-chat, browser, and music streams; device churn; speaker tuning; and virtual sinks. Graph failure is *reported*, not recovered from — see the inherited limitations under *Runtime states and recovery*; what this milestone verifies is that the report is correct and that nothing is left in a state that outlives the failure.
 
 4. **On-demand EQ**  
    Add a responsive output equalizer backed by the validated LV2 provider. Verify that resizing or hiding the editor never interrupts audio and that missing-plugin behavior remains honest and recoverable.
