@@ -48,6 +48,15 @@ double contrast(const QColor& a, const QColor& b) {
 // reuse, so a pairing below this ratio is replaced rather than honoured.
 constexpr double kMinContrast = 4.5;
 
+// How much of the accent's chroma each end of the spectrum ramp carries.
+constexpr double kSpectrumFloorChroma = 0.55;
+constexpr double kSpectrumPeakChroma = 0.85;
+
+// Saturation at which a colour counts as having a hue worth keeping, and the
+// saturation below which it has none to lend.
+constexpr double kOwnHueSaturation = 0.15;
+constexpr double kAchromatic = 0.01;
+
 QColor legibleOn(const QColor& fg, const QColor& bg) {
   if (contrast(fg, bg) >= kMinContrast) {
     return fg;
@@ -57,6 +66,56 @@ QColor legibleOn(const QColor& fg, const QColor& bg) {
   const QColor black(Qt::black);
 
   return contrast(white, bg) >= contrast(black, bg) ? white : black;
+}
+
+// Give the spectrum ramp the theme's colour, keeping the lightness it has.
+//
+// The spectrum is the largest surface in the application and the state it rests
+// in, so it is where a theme is either recognisable or not. Ramping it between
+// two *foreground* levels made it nearly achromatic: across the shipped themes
+// those levels average about 0.16 saturation against an accent averaging 0.43,
+// and several -- matte-black's orange, lupine's blue -- put their whole
+// identity in an accent the spectrum never showed.
+//
+// Taking the accent wholesale would be worse. The foreground levels already
+// encode the thing that is hard to get right: how far from the background each
+// end should sit, in the correct direction for a light theme as well as a dark
+// one. So lightness is kept exactly, and only the colour is decided here.
+//
+// Three rules, each of which a theme broke when it was missing:
+//
+//   - An achromatic accent lends nothing, and a monochrome theme stays
+//     monochrome rather than being handed a colour it did not choose.
+//   - The accent is not always the more colourful of the two. Gruvbox's is a
+//     pale teal at 0.16 saturation while its bright foreground is a warm cream
+//     at 0.59, so overwriting the hue turned a spectrum that already looked
+//     like gruvbox into a duller, colder one. A hue that exists is kept, and
+//     saturation only ever rises.
+//   - The hue is decided ONCE, for the ramp, not per end. Deciding per end gave
+//     gruvbox a cool floor and a warm peak, which reads as two colours rather
+//     than as one signal getting louder.
+void tintRamp(QColor& floorColor, QColor& peakColor, const QColor& accent, double floorChroma,
+              double peakChroma) {
+  const double accentSaturation = static_cast<double>(accent.hslSaturationF());
+
+  if (accentSaturation <= kAchromatic) {
+    return;
+  }
+
+  // The peak carries the ramp's identity, so it chooses the hue for both ends.
+  const bool peakHasHue = static_cast<double>(peakColor.hslSaturationF()) >= kOwnHueSaturation;
+  const double hue = static_cast<double>(peakHasHue ? peakColor.hslHueF() : accent.hslHueF());
+
+  auto apply = [hue, accentSaturation](QColor& c, double chroma) {
+    const double own = static_cast<double>(c.hslSaturationF());
+    const double saturation = std::clamp(std::max(own, accentSaturation * chroma), 0.0, 1.0);
+
+    c = QColor::fromHslF(static_cast<float>(hue), static_cast<float>(saturation),
+                         static_cast<float>(c.lightnessF()));
+  };
+
+  apply(floorColor, floorChroma);
+  apply(peakColor, peakChroma);
 }
 
 QColor mix(const QColor& a, const QColor& b, double t) {
@@ -233,16 +292,27 @@ void Theme::reload() {
   m_selection = colorOf("selection", mix(m_background, m_accent, 0.35));
 
   // The spectrum ramps from a quiet floor to a peak that must stay separable
-  // from both the background and the resting foreground.
-  m_spectrumLow = colorOf("dark_foreground", m_accent);
-  m_spectrumHigh = colorOf("bright_foreground", m_foregroundBright);
+  // from both the background and the resting foreground. The foreground levels
+  // set how far each end sits from the background; the accent sets what colour
+  // it is.
+  QColor spectrumFloor = colorOf("dark_foreground", m_accent);
+  QColor spectrumPeak = colorOf("bright_foreground", m_foregroundBright);
 
   // A theme supplying neither foreground level collapses the ramp to a single
   // colour, which leaves amplitude unreadable. Derive a floor from the
   // background rather than shipping a flat spectrum.
-  if (m_spectrumLow == m_spectrumHigh) {
-    m_spectrumLow = mix(m_background, m_spectrumHigh, 0.45);
+  if (spectrumFloor == spectrumPeak) {
+    spectrumFloor = mix(m_background, spectrumPeak, 0.45);
   }
+
+  // The floor carries less of the accent than the peak. Most bars are quiet
+  // most of the time, and a floor at full chroma turns the resting spectrum
+  // into a block of solid colour -- which is loud rather than punchy, and
+  // leaves the peaks nothing to be.
+  tintRamp(spectrumFloor, spectrumPeak, m_accent, kSpectrumFloorChroma, kSpectrumPeakChroma);
+
+  m_spectrumLow = spectrumFloor;
+  m_spectrumHigh = spectrumPeak;
 
   // Contrast guard. Applied to text-bearing tokens only: the spectrum and
   // chrome are allowed to sit close to the background by design.

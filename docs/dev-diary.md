@@ -22,6 +22,114 @@ happens — this remains the account of record. Detailed evidence lives in
 
 ---
 
+## 2026-08-30 (late, third pass) — The theme was arriving, but not in the spectrum
+
+**Commit:** _(backfilled)_
+
+The question was whether 42Hz really consumes the active Omarchy theme. It does
+— backgrounds, foregrounds, borders, accent and control alphas all track the
+live theme, and a theme switch is picked up without a restart. But the place a
+theme is most visible was the place it was least present.
+
+### The spectrum was running at a third of the palette's chroma
+
+`spectrumLow`/`spectrumHigh` mapped to `dark_foreground` and
+`bright_foreground`. Both are *foreground* levels, and foreground levels are
+near-neutral by design. Measured across all 22 shipped themes:
+
+| | mean saturation |
+|---|---|
+| spectrum floor | 0.18 |
+| spectrum peak | 0.14 |
+| accent | 0.43 |
+
+So the largest surface in the application, and the one it rests in, was rendering
+at roughly a third of the chroma the theme had available. Several themes put
+their entire identity in an accent the spectrum never showed: `matte-black` is
+black plus `#e68e0d` orange at 0.94 saturation, and 42Hz drew it in greys with
+the orange confined to a four-character title. `lupine`, `flexoki-light` and
+`ristretto` are the same story.
+
+### Keeping the lightness and replacing only the colour
+
+The fix is deliberately narrow. The foreground levels already encode the thing
+that is genuinely hard: how far from the background each end of the ramp should
+sit, *in the correct direction for a light theme as well as a dark one*. That
+is worth keeping exactly. Only the colour is decided fresh.
+
+Two wrong versions on the way, and both were caught by the same theme:
+
+**Version one took the accent's hue outright** and made gruvbox teal. Gruvbox's
+accent is a pale `#7daea3` at 0.16 saturation; its bright foreground is a warm
+`#d4be98` at 0.59. The theme is *more* colourful than its own accent, and
+deferring to the accent threw that away — the before/after was strictly worse.
+So: a hue that already exists is kept, saturation only ever rises, and only a
+level with no hue of its own borrows the accent's.
+
+**Version two decided the hue per end**, and gruvbox came out ramping teal at the
+floor to cream at the peak — its dark foreground sits at 0.11 saturation, below
+the "has a hue" threshold, while its bright foreground is well above it. Two
+hues in one ramp reads as two colours rather than as one signal getting louder.
+So the peak chooses the hue, once, for the whole ramp.
+
+Floor and peak carry different amounts of chroma — 0.55 and 0.85 of the
+accent's. Most bars are quiet most of the time, and a floor at full chroma turns
+the resting spectrum into a block of solid colour, which is loud rather than
+punchy and leaves the peaks nothing to be.
+
+### Checked against every theme, not the two that were in front of me
+
+`spike/theme-preview.sh` renders 42Hz under any theme by handing it a fake
+`HOME` containing only the two files the adapter reads. The desktop is never
+switched. That is the same isolation spike-02 built by hand for a different
+reason, and it makes light-theme and contrast verification repeatable — which
+milestone 5 asks for and which had been sitting untouched behind "changing the
+theme means changing the user's desktop".
+
+Twelve themes rendered and all 22 measured. No theme ends with a peak below 7:1
+against its background, a floor below 1.8:1, or a lightness span under 0.21, so
+nothing was traded away for colour. The cases worth naming:
+
+- **matte-black** goes from grey to orange, which is the whole point.
+- **gruvbox** ends up where it started, warm and slightly richer, which is also
+  the point — a rule that "improves" a theme that was already right is a bug.
+- **vantablack** and **white** stay monochrome. Their accents are greys, and a
+  grey accent lends nothing.
+- **lupine** ramps blue to black, because its `bright_foreground` *is* black.
+  Odd on paper, correct on screen: maximum contrast at the peak, hue below it.
+- **solitude** is unchanged; its accent sits at 0.10 saturation and has nothing
+  to lend.
+
+### The harness lied in a third way
+
+Captures blocked again, and the previous fix — `debug:vfr = false`, for static
+content — was already in place. The cause this time was the user switching
+workspaces: **a nested compositor on an unmapped workspace receives no frame
+callbacks at all**, so screencopy never completes. There is no fix from inside
+the nested session; it has to be visible on the parent's active workspace for
+the whole of a sweep. The harness now says so instead of naming occlusion.
+
+### Verified
+
+Twelve themes rendered from the built binary and compared against their
+`colors.toml`; all 22 measured for peak contrast, floor contrast and lightness
+span. Desktop unchanged throughout — still `tokyo-night`, default sink
+untouched, nothing left running.
+
+### Still open
+
+The frame line and legend are drawn in neutral foreground greys. That is a
+restrained choice and it reads well, but if more of the theme should come
+through in the chrome as well as the signal, that is the next place to put it.
+
+Everything from the previous entry stands: the live-but-silent stream still
+draws an empty window (explicitly deferred), light-theme *switching* is now
+verifiable but live switching under load is not yet tested,
+`SpectrumCells.qml` is still referenced by nothing, `spike/` is still misnamed,
+and the repo is still on `master`.
+
+---
+
 ## 2026-08-30 (late, second pass) — Fixing what the sweep found
 
 **Commit:** _(backfilled)_

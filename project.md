@@ -231,6 +231,17 @@ screenshot catches whichever window is on top.
 from a generated config, and `spike/geometry-sweep.sh` drives a capture sweep
 through it. The nested session reads no user configuration and writes none.
 
+Theme fidelity is verified the same way. The theme adapter resolves its state
+path from the home directory, so `spike/theme-preview.sh` renders 42Hz under any
+theme in `/usr/share/omarchy/themes` by giving it a fake `HOME` containing
+nothing but the two files the adapter reads. No theme is switched and the
+running desktop never changes.
+
+The nested session must be visible on the parent's **active workspace** for the
+whole of a sweep. A compositor nested in a window renders only while that window
+receives frame callbacks, and an unmapped workspace delivers none — captures
+then block rather than fail. There is no fix from inside the nested session.
+
 Geometry is set on the *window*, never on the nested output. The output is a
 surface in the parent session, so the parent's layout decides its size and a
 `monitor` rule does not; a floating window sized with
@@ -365,6 +376,23 @@ There will be a ui to enable or disable effects on each source, atm there is onl
 - Read the resolved palette from `~/.local/state/omarchy/current/theme/colors.toml`, and per-surface role overrides from the adjacent `shell.toml`, when available. A theme may ship `shell.toml` directly to override the generated file.
 - Layer `~/.config/omarchy/shell.toml` on top of both. It is a machine-level override that survives theme switches and is where `omarchy display text size` writes `[font] base-size`, so its keys must win over the theme's.
 - Map the complete usable palette into semantic UI tokens, including background levels, foreground levels, muted state, accent, selection, warning, error, and spectrum colors.
+- **The spectrum carries the theme's colour.** It is the largest surface in the
+  application and the state it rests in, so it is where a theme is either
+  recognisable or not. Its ramp takes its lightness from the theme's foreground
+  levels — which already encode how far from the background each end should sit,
+  in the correct direction for a light theme as well as a dark one — and its
+  hue and chroma from the palette. Three rules, each of which a shipped theme
+  breaks when it is missing:
+  - **A hue that already exists is kept, and saturation only ever rises.** The
+    accent is not always the more colourful of the two: gruvbox's is a pale teal
+    at 0.16 saturation against a bright foreground at 0.59, so deferring to the
+    accent there makes the spectrum duller and colder than the theme it came
+    from. A foreground level with no hue of its own borrows the accent's.
+  - **The ramp has one hue, decided once.** Choosing per end gives a cool floor
+    and a warm peak, which reads as two colours rather than one signal getting
+    louder.
+  - **An achromatic accent lends nothing.** A monochrome theme stays
+    monochrome rather than being handed a colour it did not choose.
 - Follow the active Omarchy font and text scaling where exposed.
 - Watch the atomically replaced current-theme state and apply changes live without restarting the application or audio graph. **Watch the parent directory, not the theme directory or its files.** `omarchy-theme-set` replaces `current/theme` by removal and rename, so a watch on `theme/` or on `colors.toml` is dropped by the swap and never recovers, even though a file reappears at the same path moments later. `~/.local/state/omarchy/current/` outlives the swap and is the only durable signal. Re-establish the finer-grained watches after every load, and coalesce: one switch produces a burst of events.
 - Use theme and font hooks only as optional low-latency notifications; file/state monitoring remains the reliable path. Omarchy's own shell is notified through Quickshell IPC, which 42Hz cannot receive, so this is not a preference but the only available route.
