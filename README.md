@@ -19,9 +19,11 @@ across tiled, floating, narrow, wide and fullscreen geometries and the defects
 it found are fixed; the theme is verified against every shipped Omarchy theme
 and follows a live text-size change, leaving a whole-theme switch under load as
 the last open item. Milestone 3 has been swept at graph level — device churn,
-virtual sinks and stream capture all behave, and the one defect it found, a
-feedback loop 42Hz would build through its own sink, is fixed. Browser and game
-streams, speaker-tuning coexistence and the mixer's on-screen display remain.
+virtual sinks and stream capture all behave, and the two defects it found are
+fixed: a feedback loop 42Hz would build through its own sink, and its overriding
+of a filter-chain stream's routing pin. Speaker-tuning coexistence is verified
+against a hand-built filter chain. Browser and game streams, and the mixer's
+on-screen display, remain.
 
 42Hz's own frontend lives in [`frontend/`](frontend) and renders the live spectrum
 on the active Omarchy theme — palette, typography and spectrum ramp all resolved
@@ -42,6 +44,30 @@ rather than left as an empty window. An application mixer lists live playback
 streams with volume, mute, and processing-inclusion controls. Two chrome modes
 are switchable from the keyboard, every action is reachable by key at every
 size, and key hints are drawn in the theme's accent wherever they appear.
+
+## Alongside Omarchy's speaker tuning
+
+Omarchy ships speaker tunings as native PipeWire filter-chain sinks, not as
+EasyEffects presets, so nothing is lost by conflicting with the EasyEffects
+package. The question is ordering, and 42Hz chains in front:
+
+```
+application → 42hz_sink → 42Hz processing → tuning sink → device
+```
+
+Select the tuning as your default output and that forms on its own — 42Hz's
+output leg follows the default onto the tuning, and the tuning reaches the
+device on its own leg.
+
+42Hz honours `node.dont-move`. A filter chain's output leg belongs to the device
+it was fitted for, and Omarchy's tunings pin theirs precisely so that nothing
+rerouting "all streams" drags the processing onto the wrong device or back into
+the tuning's own sink. 42Hz treats that pin as binding rather than relying on
+the session manager to enforce it.
+
+It also refuses to capture any stream whose path returns to its own sink, so a
+monitor loopback cannot be turned into a feedback loop through the processing
+graph.
 
 ## Known limitations
 

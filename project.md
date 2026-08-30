@@ -5,7 +5,7 @@
 - **Public name:** 42Hz
 - **Executable:** `42hz`
 - **Working directory:** `~/Work/42Hz/`
-- **Status:** milestone 1 complete; milestones 2 and 3 in progress. Milestone 2's responsive sweep has been run and its defects fixed, the theme is verified across every shipped theme and follows a live text-size change; a whole-theme switch under load is what remains. Milestone 3 has been swept at graph level and the feedback-cycle defect it found is fixed; browser and game streams, speaker-tuning coexistence and the mixer's on-screen display remain. Progress, verification and open threads are tracked in [`docs/dev-diary.md`](docs/dev-diary.md), not here.
+- **Status:** milestone 1 complete; milestones 2 and 3 in progress. Milestone 2's responsive sweep has been run and its defects fixed, the theme is verified across every shipped theme and follows a live text-size change; a whole-theme switch under load is what remains. Milestone 3 has been swept at graph level and the two defects it found are fixed — a feedback loop 42Hz built through its own sink, and its overriding of a filter-chain stream's `node.dont-move` pin. Speaker-tuning coexistence is verified against a hand-built filter chain; browser and game streams and the mixer's on-screen display remain. Progress, verification and open threads are tracked in [`docs/dev-diary.md`](docs/dev-diary.md), not here.
 
 ### How to read this document
 
