@@ -22,6 +22,188 @@ happens — this remains the account of record. Detailed evidence lives in
 
 ---
 
+## 2026-08-30 (late, second pass) — Fixing what the sweep found
+
+**Commit:** _(backfilled)_
+
+The four defects from the sweep, all fixed and re-verified, plus a size floor
+the window reports for itself. And a correction: the dispatch finding from this
+morning was right after all, for a reason neither session had.
+
+### The keymap is data now, and that is what makes the legend shrink
+
+The legend defect and the keymap-drift problem were one thing seen twice. The
+legend could not shorten itself because it was a string literal, and it could
+not stay honest because the bindings lived somewhere else.
+
+`Main.qml` now holds `windowBindings` and `mixerBindings`: `keys`, `label`,
+`priority`, `advertised`, `action`. The key handler dispatches from the table
+and the framed legend is rendered from it, so a binding cannot change without
+the legend changing with it. `Frame` takes `legendItems` and drops the
+lowest-priority entries until what remains fits the width it actually has.
+
+Three decisions inside that are worth keeping:
+
+- **`action` receives the key that matched.** Otherwise a direction pair
+  becomes two rows that each advertise half a label, and `[-/+] density` has
+  nowhere to live.
+- **`advertised` gates the legend and nothing else.** `project.md` asks that
+  only bindings backed by a live capability be *advertised*, and separately
+  that every action stay reachable by key at every size. Gating the action too
+  would have been easy and wrong: a key that silently stops working is worse
+  than one that stops being mentioned.
+- **An entry may carry no label.** That is how `Ctrl+W` lives beside `q` and
+  `↑`/`↓` beside the mixer without either appearing twice.
+
+Verified by driving the keys rather than reading the table: `-` and `+` move bar
+density in the right directions, `b` puts `42Hz  ·  bypassed` in the title, and
+plain `w` does not quit while `Ctrl+W` does.
+
+### The mixer row, and a column that has to shrink twice
+
+Columns are measured with `FontMetrics.advanceWidth` rather than guessed at in
+ems, which incidentally fixed a latent clip: `processWidth` was 4.6 em against a
+word needing nearer 4.9, so "bypassed" was cut off in any font at any size.
+
+The media name is dropped rather than elided — at 480 px it had been rendering
+as `S…`, which spends the width of a word to say nothing — and the meter goes
+next, since it restates the percentage beside it. The flags size to their
+content, so an inactive state costs no width at all.
+
+Two attempts, and the first one was worse than what it replaced:
+
+**Reserving the widest flags always** kept a muted stream from reflowing its own
+row, and at 240 px left the name 31 px, which elided to a bare ellipsis. Names
+are the whole point of the list. **But dropping the reservation** would have let
+the state words disappear, and a state that stops being reported is the failure
+the two-column split exists to prevent. So neither gives way: below the width
+where the words fit beside a readable name they contract to `M` and `B`, and
+both states stay on screen.
+
+**Then the fix broke monotonicity.** Contracting the flags hands back enough
+room to reintroduce a column, so widening the window from 280 to 340 px turned
+the flags back into words and *took the volume meter away again*. A wider window
+must never show less. Every decision about which columns exist is now made
+against the space that would be left if the flags never contracted, and only the
+name gets the benefit of the contraction.
+
+### Too small is a state, and the floor belongs to the chrome
+
+Below its floor the window says so, on the darkest background level, with the
+size it needs and — when another mode would do better — `[1] for bare chrome`.
+Every binding still works there, that one included.
+
+**The floor is the loaded chrome's, not the window's.** Bare mode at 160x60 is a
+working display and the sweep had confirmed it; a single window-level threshold
+would have taken that away to fix a framed-mode problem. Bare asks for 127x48,
+framed for 179x108, both derived from font metrics so they follow
+`omarchy display text size`.
+
+*On the black background:* `Theme.backgroundDarker` rather than a literal black.
+On a dark Omarchy theme it is black to the eye; on a light one a black panel
+would be the single surface in the application that ignores the theme. One line
+to change if the intent was literal.
+
+**The floor oscillated at first, and the cause is worth remembering.**
+`minimumHeight` was computed from `Frame`'s own label items, and hiding the
+shell because the window was too small set those labels invisible — QML
+propagates visibility to children — which collapsed the insets, lowered the
+floor, and made the window large enough again. The window latched between the
+two and reported `needs 179 × 78` while sitting at 200x100, a pair that cannot
+both be true. Measuring the same quantity from `FontMetrics` decouples it from
+what is on screen. **A minimum size must not be derived from anything that
+depends on visibility.**
+
+### The dispatch finding was right, and so was the correction
+
+This morning's entry recorded that this Hyprland's dispatchers are a Lua API and
+`hyprctl dispatch` cannot reach them. The harness entry a few hours later
+contradicted it, having driven six dispatchers through plain `hyprctl dispatch`.
+Both are correct, and the difference is the config format:
+
+`~/.config/hypr/` holds `hyprland.lua`, not `hyprland.conf`. **A Lua-configured
+Hyprland parses `hyprctl dispatch ...` as a Lua expression**, so
+`dispatch focuswindow class:aquamarine` returns `')' expected near 'class'`.
+Every dispatcher fails that way; none is missing. The nested session is started
+with `-c` on a generated `.conf`, runs the classic parser, and takes native
+dispatchers.
+
+So the harness uses plain dispatch for the nested session and `hyprctl eval`
+with Lua for the one thing it asks of the parent. A Hyprland version number does
+not tell you which form to use. Worth noting that Hyprland warns `.conf` support
+is removed in 0.57, at which point the harness's config becomes Lua and every
+dispatch in it becomes an `eval`.
+
+### The core aborts when PipeWire is unreachable
+
+Found while trying to force the `no audio service` report by pointing an
+instance at a nonexistent socket. It does not report it — it dumps core.
+`pw::Manager`'s constructor calls `util::fatal` at `pw_manager.cpp:339` after
+"Context connection failed", from `CoreServices` in `main()`, before the QML
+engine loads.
+
+So `audioServiceReady` can only ever be false if PipeWire drops *after* startup;
+at startup there is no window to report it in. `project.md` stages the window
+first and PipeWire third precisely so that this is reportable, and the derived
+core does the opposite. That is a milestone-5 item, recorded there.
+
+### Two more ways the harness lied
+
+Both cost real time and neither is about 42Hz.
+
+**A static nested output starves screencopy.** With VFR on, a compositor showing
+unchanging content stops producing frames, so `grim` waits forever for one. A
+capture of a silent, still window hung; the identical capture of a live spectrum
+returned in milliseconds. It looks exactly like a wedged application, and I went
+looking for occlusion in the parent before finding it. `debug:vfr = false` fixes
+it — the option moved out of `misc:`, where the old name is now an unknown key
+and therefore raises the banner that started this whole class of problem. `grim`
+also runs under a timeout now, so the harness fails with a reason.
+
+**A new instance greets you with timed warning banners** and draws them into its
+own output, where `grim` collects them across the top of the picture. They
+expire in about fifteen seconds, so `start` now waits them out rather than
+leaving every caller to distrust its first captures.
+
+Also: `pkill -f streams.sh` matched the shell running it and killed the
+session's own bash. Twice is a pattern; a literal that can match your own
+command line is not a safe argument to `pkill`.
+
+### Verified
+
+Full 21-case sweep re-run against the fixed build with three live streams and no
+QML errors. The four defects are gone: framed 160x60 reports its floor instead
+of drawing nothing; the legend fits and the border closes at 200, 240 and
+320 px; mixer rows are clean and named from 240 px up; column appearance is
+monotonic across 240/280/340/400/480/640. Keys driven individually as above.
+
+### Still open
+
+**The state report's narrow form was not observed directly.** The detail line is
+dropped rather than elided when it does not fit, and the identical predicate was
+watched working in the too-small notice — the hint drops at 160 px and shows at
+320. But `StateReport`'s own detail could not be photographed, because reaching
+"no audio" needs zero application streams and this machine has a persistent one
+(`alsa_playback.nolo_client`, from the Nolo app). Forcing the other long-detail
+state, "no audio service", is what turned up the abort above.
+
+**A live but silent stream still draws an empty window.** `spectrumFlowing`
+tests `points.length > 0`, not whether any point is non-zero, so a stream that
+exists and is silent produces a flat spectrum and no report at all. That is the
+forbidden empty window from a fifth direction. Not fixed here: it is a change to
+what the runtime states *are*, not to how they are laid out.
+
+Light themes and live theme switching remain unlooked-at, and the harness does
+not help — theme state is machine-global, so verifying it means changing the
+theme on the user's actual desktop.
+
+Unchanged: `ShellFramed.qml` still draws its legend bottom left where
+`project.md` says bottom right; `SpectrumCells.qml` is still built and
+referenced by nothing; `spike/` is still misnamed; the repo is still on
+`master`.
+
+---
+
 ## 2026-08-30 (late) — A nested compositor, and the responsive test finally run
 
 **Commit:** _(backfilled)_

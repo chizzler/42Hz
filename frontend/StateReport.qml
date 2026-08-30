@@ -73,11 +73,16 @@ Item {
 
     Column {
         anchors.centerIn: parent
+        width: parent.width
 
         spacing: Math.round(Theme.fontBaseSize * 0.4)
 
+        // The title is the diagnosis and always shows. It is short by
+        // construction, and the window has a floor below which it is replaced
+        // wholesale, so it is never asked to fit somewhere it cannot.
         Text {
-            anchors.horizontalCenter: parent.horizontalCenter
+            width: parent.width
+            horizontalAlignment: Text.AlignHCenter
 
             text: report.state.title
             color: report.state.error ? Theme.error : Theme.foreground
@@ -85,14 +90,19 @@ Item {
             font.pixelSize: Theme.fontBaseSize
         }
 
+        // The qualifier is dropped when it does not fit, not elided. It is a
+        // sentence, and half a sentence centred under a diagnosis reads as
+        // damage rather than as brevity -- at 200 px this line was rendering
+        // as "thing is playing through 42", overflowing both edges.
         Text {
-            anchors.horizontalCenter: parent.horizontalCenter
+            width: parent.width
+            horizontalAlignment: Text.AlignHCenter
 
             text: report.state.detail
             color: Theme.muted
             font.family: Theme.fontFamily
             font.pixelSize: Theme.fontBaseSize
-            visible: text.length > 0
+            visible: text.length > 0 && implicitWidth <= width
         }
     }
 }

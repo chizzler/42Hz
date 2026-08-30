@@ -5,7 +5,7 @@
 - **Public name:** 42Hz
 - **Executable:** `42hz`
 - **Working directory:** `~/Work/42Hz/`
-- **Status:** milestone 1 complete; milestones 2 and 3 in progress. Milestone 2's responsive verification has been run: bar density, bare mode and every geometry at 480 px and wider are correct, and framed chrome fails below that, so the milestone is not closed. Progress, verification and open threads are tracked in [`docs/dev-diary.md`](docs/dev-diary.md), not here.
+- **Status:** milestone 1 complete; milestones 2 and 3 in progress. Milestone 2's responsive verification has been run and the defects it found are fixed; live theme adaptation across light and dark themes remains unverified, so the milestone is not closed. Progress, verification and open threads are tracked in [`docs/dev-diary.md`](docs/dev-diary.md), not here.
 
 ### How to read this document
 
@@ -177,6 +177,32 @@ among product modes. Bar density is the first instance: the spectrum resamples
 to however many bars fit at a target bar width, so a wider window shows more of
 the signal instead of a stretched copy of the same picture.
 
+Two rules govern how the layout gives things up as it narrows:
+
+- **Chrome yields before signal.** Labels, legends, restated values and
+  decoration are dropped in that order; the spectrum, the state report and every
+  reported state are not. A component that will not fit is dropped, never elided
+  to a stub — a column reserving the width of a word to render `S…`, or a
+  measurement truncated to `at least 18…`, costs the space and delivers none of
+  the meaning.
+- **A wider window never shows less.** Whatever is disclosed at one size is
+  disclosed at every larger size. Any rule that hands width back as the window
+  narrows must not be allowed to reintroduce something that was dropped.
+
+**Each chrome mode declares the smallest window it can work in**, and below that
+the window reports that it is too small, names the size it needs, and points at
+a mode that would fit. The floor belongs to the mode rather than the window:
+framed chrome pays for a title row, a legend row and border air that do not
+shrink, while bare chrome pays for none of it and stays useful far smaller. A
+single window-wide threshold would take a working bare window away to fix a
+framed-mode problem.
+
+Every floor is derived from font metrics, so it follows `omarchy display text
+size` rather than fixing a pixel count. A floor must not be derived from
+anything that depends on visibility: QML propagates `visible` to children, so a
+minimum computed from live label geometry collapses at the moment the shell is
+hidden for being too small, and the window oscillates between the two answers.
+
 Pinned positions in framed mode:
 
 - **Top left:** identity and state.
@@ -223,11 +249,35 @@ the Release build and the logging routing do:
   its own output. `cursor:inactive_timeout` removes it.
 - **`dispatch fullscreen 0` enters fullscreen; it does not leave it.**
   `fullscreenstate` names a state rather than toggling toward one.
+- **A static nested output starves screencopy.** With VFR on, a compositor
+  showing unchanging content stops producing frames and `grim` waits forever for
+  one, so a capture of a silent, still window hangs while the same capture of a
+  live spectrum returns at once. It reads as a wedged application.
+  `debug:vfr = false` — the option is no longer under `misc:`.
+- **A new instance draws timed warning banners into its own output** for about
+  fifteen seconds. Wait them out before capturing.
+
+Which form of `hyprctl dispatch` works is decided by how the *instance* was
+configured, not by the Hyprland version. A Lua-configured Hyprland — a
+`hyprland.lua` with no `hyprland.conf`, which is what Omarchy ships here —
+parses `hyprctl dispatch ...` as a Lua expression, so every dispatcher fails on
+its arguments and `hyprctl eval` with `hl.dispatch` is the only route. An
+instance started with `-c` on a `.conf` runs the classic parser and takes native
+dispatchers. The harness generates a `.conf` and therefore uses plain dispatch
+for the nested session, reserving the Lua form for the one thing it asks of the
+parent.
 
 ### Keyboard
 
 Every action is reachable by key at every window size, and only bindings backed
 by a live capability are advertised in the interface.
+
+The bindings are published as data that the key handler and the interface both
+read. A binding carries its key, its label, the priority it is given up at when
+the legend must shorten, and whether a live capability backs it. Advertising is
+gated on that capability; the action never is, because every action stays
+reachable by key at every size and a key that silently stops working is worse
+than one that stops being mentioned.
 
 | key | action |
 |---|---|
@@ -341,6 +391,14 @@ Silence, an unreachable audio service, a stopped pipeline and a crashed process
 must never look alike. Each is named in the centre of the window, in the space
 the signal would otherwise occupy. An empty window is not an acceptable report
 of anything.
+
+**The derived core does not currently reach the first of these.** `pw::Manager`'s
+constructor calls `util::fatal` when the PipeWire context connection fails, from
+`CoreServices` in `main()`, before the QML engine loads — so an audio service
+that is unreachable *at startup* aborts the process instead of being reported in
+the window. `audioServiceReady` can therefore only ever go false for a service
+that drops afterwards. Closing that gap is a change to the derived core and
+belongs to the patch inventory.
 
 Startup proceeds in stages:
 

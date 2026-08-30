@@ -34,6 +34,7 @@ qt_add_qml_module(hz_frontend
         Spectrum.qml
         SpectrumCells.qml
         StateReport.qml
+        TooSmall.qml
         StreamPanel.qml
         Surface.qml
         ShellFramed.qml

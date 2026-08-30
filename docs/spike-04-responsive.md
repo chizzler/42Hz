@@ -46,13 +46,30 @@ across 21 cases. So the sweep sets window geometry and treats the output only
 as a ceiling, clamping to it and reporting the size actually granted rather
 than the size requested.
 
-`hyprctl dispatch` works. The 2026-08-30 (afternoon) diary entry records that
-this Hyprland's dispatchers are a Lua API reachable only through `hyprctl eval`;
-that is not true of `setfloating`, `settiled`, `resizewindowpixel`,
-`centerwindow`, `focuswindow` or `fullscreenstate`, all of which were driven
-here through plain `hyprctl dispatch` against a nested instance of the same
-binary. What went wrong in the earlier session was not diagnosed and is not
-explained by this.
+**Which `hyprctl dispatch` form works is decided by how the instance was
+configured.** The 2026-08-30 (afternoon) diary entry records that this
+Hyprland's dispatchers are a Lua API reachable only through `hyprctl eval`.
+That is exactly right for the user's session and exactly wrong for the nested
+one, and the difference is the config format:
+
+- `~/.config/hypr/` holds `hyprland.lua`, not `hyprland.conf`. A
+  Lua-configured Hyprland parses `hyprctl dispatch ...` as a Lua expression, so
+  `dispatch focuswindow class:aquamarine` comes back as
+  `')' expected near 'class'` with a note that dispatch is shorthand for
+  `hl.dispatch(...)`. Every dispatcher fails that way; none of them is missing.
+- The nested session is started with `-c` on a generated `.conf`, so it runs the
+  classic parser and takes native dispatchers. `setfloating`, `settiled`,
+  `resizewindowpixel`, `centerwindow`, `focuswindow` and `fullscreenstate` were
+  all driven through plain `hyprctl dispatch` here.
+
+So the harness uses plain dispatch for everything aimed at the nested session
+and `hyprctl eval` with Lua for the one thing it must ask of the parent. Neither
+form is "the" correct one, and a Hyprland version number does not tell you which
+to use.
+
+Hyprland warns on startup that `.conf` support is removed in 0.57, which is
+worth knowing before that arrives: converting the generated config to Lua would
+mean rewriting every harness dispatch as `hyprctl eval`.
 
 ### Cases
 
@@ -170,3 +187,25 @@ Everything at 480 px and wider is sound, in both chrome modes:
   to clear the state captured each window state under the *previous* case's
   label. `fullscreenstate <internal> <client>` names the state instead of
   toggling toward it.
+- **A static nested output starves screencopy, and `grim` then never returns.**
+  With VFR on, a compositor showing unchanging content stops producing frames,
+  so a capture of a silent, still window hangs forever while the identical
+  capture of a live spectrum returns in milliseconds. It reads exactly like a
+  wedged application. The option is `debug:vfr` in this Hyprland — `misc:vfr`,
+  where it used to live, is now an unknown key and therefore raises the banner
+  described above. `grim` also now runs under a timeout, so the harness fails
+  with a reason rather than hanging.
+- **A new instance greets you with timed warning banners** — a `.conf`
+  deprecation notice and one about not being started by `start-hyprland` — drawn
+  into its own output and captured by `grim` across the top of whatever is being
+  photographed. They expire after about fifteen seconds;
+  `misc:disable_watchdog_warning` removes the second. `nested-session.sh start`
+  now waits them out before returning.
+
+## Re-verified after the fixes
+
+All four defects were fixed in the following session and the sweep re-run
+against the same cases; see the diary entry for what changed and what the fixes
+cost. The floor a framed window reports, 179 x 108 px at the default text size,
+is derived from font metrics rather than fixed, so it moves with
+`omarchy display text size`.

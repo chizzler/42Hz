@@ -23,6 +23,24 @@ Item {
 
     readonly property alias streamPanel: panel
 
+    // The smallest window this surface can still do its job in: draw a
+    // spectrum that reads as a spectrum, or name the state standing in for
+    // one. Bare mode is this and nothing else, so this is also bare mode's
+    // floor -- and it is deliberately low. Bare at 160x60 is a working
+    // display, and a size check must not take that away.
+    //
+    // Width is set by the longest thing the state report has to say, since a
+    // report too wide to read is the failure the report exists to prevent.
+    readonly property real minimumWidth: Math.ceil(surfaceFont.advanceWidth("no audio service") + Theme.fontBaseSize)
+    readonly property real minimumHeight: Math.round(Theme.fontBaseSize * 4)
+
+    FontMetrics {
+        id: surfaceFont
+
+        font.family: Theme.fontFamily
+        font.pixelSize: Theme.fontBaseSize
+    }
+
     // One gutter, stated once. It separates the spectrum from the divider and
     // the divider from the mixer, and the panel height is measured against it,
     // so three sites restating it is three chances to drift half a gutter.

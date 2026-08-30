@@ -21,13 +21,76 @@ Item {
     // otherwise cross into C++ three times per row on every selection move.
     readonly property real rowHeight: Math.round(Theme.fontBaseSize * 1.9)
     readonly property real gap: Math.round(Theme.fontBaseSize * 0.8)
-    readonly property real markerWidth: Math.round(Theme.fontBaseSize)
-    readonly property real nameWidth: Math.round(panel.width * 0.32)
-    readonly property real meterWidth: Math.round(panel.width * 0.22)
     readonly property real meterHeight: Math.max(2, Math.round(Theme.fontBaseSize * 0.28))
-    readonly property real readingWidth: Math.round(Theme.fontBaseSize * 2.6)
-    readonly property real muteWidth: Math.round(Theme.fontBaseSize * 3.4)
-    readonly property real processWidth: Math.round(Theme.fontBaseSize * 4.6)
+
+    // Columns are measured, not guessed at in ems. The old multipliers were
+    // close but not right -- `processWidth` was 4.6 em against a word needing
+    // nearer 4.9, so "bypassed" was clipped in any font at any size -- and a
+    // guess cannot follow `omarchy font set` into a font with different
+    // metrics. FontMetrics knows the answer for the font actually in use.
+    FontMetrics {
+        id: metrics
+
+        font.family: Theme.fontFamily
+        font.pixelSize: Theme.fontBaseSize
+    }
+
+    readonly property real markerWidth: Math.ceil(metrics.advanceWidth("\u203a "))
+    readonly property real readingWidth: Math.ceil(metrics.advanceWidth("100%"))
+
+    // What a column needs before it is worth drawing at all. Ten characters is
+    // where a stream name stops being a name and becomes a prefix.
+    readonly property real minTextWidth: Math.ceil(metrics.advanceWidth("mmmmmmmmmm"))
+    readonly property real meterWidth: Math.round(Theme.fontBaseSize * 4)
+
+    // Both state words together are wider than a narrow row can spare beside a
+    // readable name -- at 240 px they left the name 31 px, which elided to a
+    // bare ellipsis. Neither giving way is acceptable: a state that stops being
+    // reported is the failure the two-column split exists to prevent, and a
+    // name elided to nothing is the failure the column widths exist to
+    // prevent. So the words contract to their initials instead, and both
+    // states stay on screen.
+    readonly property real wideFlagsWidth: Math.ceil(metrics.advanceWidth("muted")) + Math.ceil(metrics.advanceWidth("bypassed"))
+
+    // The space left over if the flags never contract. Every decision about
+    // which columns exist is made against this rather than against the space
+    // actually free, so that contracting the flags cannot hand back enough
+    // room to reintroduce a column -- which made the layout non-monotonic:
+    // widening 280 -> 340 px turned the flags back into words and took the
+    // volume meter away again. A wider window must never show less.
+    readonly property real flexAtWidestFlags: Math.max(0, panel.width - (markerWidth + readingWidth + wideFlagsWidth + 4 * gap))
+
+    readonly property bool compactFlags: panel.flexAtWidestFlags < minTextWidth
+
+    readonly property string muteText: panel.compactFlags ? "M" : "muted"
+    readonly property string processText: panel.compactFlags ? "B" : "bypassed"
+
+    readonly property real muteWidth: Math.ceil(metrics.advanceWidth(panel.muteText))
+    readonly property real processWidth: Math.ceil(metrics.advanceWidth(panel.processText))
+
+    // Reserved against both flags being present even when neither is, so a
+    // stream being muted cannot reflow the row it is in. The flags themselves
+    // size to their content, so an empty one costs nothing on screen -- this
+    // is only the width the *decisions* below are made against.
+    readonly property real fixedWidth: markerWidth + readingWidth + muteWidth + processWidth + 4 * gap
+
+    // Columns are given up in order of what they add: the media name repeats
+    // information the stream name already carries, and the meter restates the
+    // percentage beside it. Name, volume, mute and processing state are the
+    // row, and none of them is ever dropped -- a state that stops being
+    // reported is the failure this panel's two-column split exists to avoid.
+    readonly property real flexWidth: Math.max(0, panel.width - panel.fixedWidth)
+    readonly property bool showMeter: panel.flexAtWidestFlags >= panel.minTextWidth + panel.meterWidth + gap
+    readonly property bool showMediaName: panel.showMeter
+        && panel.flexAtWidestFlags >= 2 * panel.minTextWidth + panel.meterWidth + 2 * gap
+
+    // The name takes what is left, and shares it with the media name when
+    // there is one. Below ~320 px the fixed proportions this replaced put the
+    // volume meter straight through the stream name.
+    readonly property real nameWidth: {
+        const spare = panel.flexWidth - (panel.showMeter ? panel.meterWidth + gap : 0);
+        return panel.showMediaName ? Math.max(panel.minTextWidth, Math.round(spare * 0.45)) : spare;
+    }
 
     // The empty half of a meter is control chrome, so it takes the theme's
     // own control fill rather than a number invented here.
@@ -139,7 +202,7 @@ Item {
                 anchors.left: marker.right
                 anchors.verticalCenter: parent.verticalCenter
 
-                width: panel.nameWidth
+                width: Math.max(0, panel.nameWidth)
                 elide: Text.ElideRight
                 text: row.appName.length > 0 ? row.appName : "unnamed stream"
                 color: row.selected ? Theme.foreground : panel.idleName
@@ -147,10 +210,14 @@ Item {
                 font.pixelSize: Theme.fontBaseSize
             }
 
+            // Dropped rather than elided when narrow. Elided, this column
+            // spent the width of a word to render "S\u2026", which reserves space
+            // to say nothing.
             Text {
                 anchors.left: name.right
+                anchors.leftMargin: panel.gap
                 anchors.right: meter.left
-                anchors.rightMargin: panel.gap
+                anchors.rightMargin: panel.showMeter ? panel.gap : 0
                 anchors.verticalCenter: parent.verticalCenter
 
                 elide: Text.ElideRight
@@ -158,6 +225,7 @@ Item {
                 color: Theme.muted
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.fontBaseSize
+                visible: panel.showMediaName
             }
 
             // Volume as a bar rather than a number alone: the number is exact,
@@ -166,11 +234,12 @@ Item {
                 id: meter
 
                 anchors.right: reading.left
-                anchors.rightMargin: panel.gap
+                anchors.rightMargin: panel.showMeter ? panel.gap : 0
                 anchors.verticalCenter: parent.verticalCenter
 
-                width: panel.meterWidth
+                width: panel.showMeter ? panel.meterWidth : 0
                 height: panel.meterHeight
+                visible: panel.showMeter
 
                 Rectangle {
                     anchors.fill: parent
@@ -188,7 +257,7 @@ Item {
                 id: reading
 
                 anchors.right: muteFlag.left
-                anchors.rightMargin: panel.gap
+                anchors.rightMargin: muteFlag.width > 0 ? panel.gap : 0
                 anchors.verticalCenter: parent.verticalCenter
 
                 horizontalAlignment: Text.AlignRight
@@ -205,12 +274,12 @@ Item {
                 id: muteFlag
 
                 anchors.right: processFlag.left
-                anchors.rightMargin: panel.gap
+                anchors.rightMargin: processFlag.width > 0 ? panel.gap : 0
                 anchors.verticalCenter: parent.verticalCenter
 
                 horizontalAlignment: Text.AlignRight
-                width: panel.muteWidth
-                text: row.mute ? "muted" : ""
+                width: row.mute ? panel.muteWidth : 0
+                text: row.mute ? panel.muteText : ""
                 color: Theme.error
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.fontBaseSize
@@ -223,8 +292,8 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
 
                 horizontalAlignment: Text.AlignRight
-                width: panel.processWidth
-                text: row.connected ? "" : "bypassed"
+                width: row.connected ? 0 : panel.processWidth
+                text: row.connected ? "" : panel.processText
                 color: Theme.muted
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.fontBaseSize

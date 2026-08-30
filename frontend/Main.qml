@@ -42,7 +42,7 @@ Window {
     // nothing to draw, so the request stops and the last frame is cleared.
     Timer {
         interval: 1000 / 60
-        running: root.audioServiceReady && root.streamCount > 0
+        running: root.audioServiceReady && root.streamCount > 0 && !root.tooSmall
         repeat: true
         onTriggered: StreamOutputEffects.requestSpectrumData()
 
@@ -118,11 +118,20 @@ Window {
     // thing the user asked to see. Hiding it changes nothing in the graph.
     property bool streamsVisible: false
 
+    // The floor is the chrome's, not the window's. Framed mode pays for a
+    // title row, a legend row and border air that do not shrink; bare mode
+    // pays for none of it and stays useful far smaller. Asking the loaded
+    // shell what it needs is what keeps a size check from taking away a bare
+    // window that was working.
+    readonly property bool tooSmall: shellLoader.item !== null
+        && (root.width < shellLoader.item.minimumWidth || root.height < shellLoader.item.minimumHeight)
+
     Loader {
         id: shellLoader
 
         anchors.fill: parent
         source: root.shells[root.shellIndex].file
+        visible: !root.tooSmall
 
         onLoaded: {
             item.points = Qt.binding(() => root.points);
@@ -132,10 +141,160 @@ Window {
             item.processingReady = Qt.binding(() => root.processingReady);
             item.spectrumFlowing = Qt.binding(() => root.spectrumFlowing);
             item.streamCount = Qt.binding(() => root.streamCount);
+
+            // Bare mode draws no legend and does not declare the property.
+            // Reading an absent one is undefined; writing it is an error.
+            if (item.legendItems !== undefined)
+                item.legendItems = Qt.binding(() => root.legendItems);
         }
     }
 
+    TooSmall {
+        anchors.fill: parent
+
+        visible: root.tooSmall
+        requiredWidth: shellLoader.item !== null ? Math.ceil(shellLoader.item.minimumWidth) : 0
+        requiredHeight: shellLoader.item !== null ? Math.ceil(shellLoader.item.minimumHeight) : 0
+
+        // Bare chrome always has the lower floor, so it is worth offering
+        // whenever it is not already loaded. Every binding still works here,
+        // this one included -- the window keeps its keyboard at any size.
+        hint: root.shellIndex !== 0 ? "[1] for bare chrome" : ""
+    }
+
     // ---- keyboard ----------------------------------------------------------
+
+    // One table, two readers: the handler below dispatches from it, and the
+    // framed legend is rendered from it. They used to be a switch statement in
+    // here and a string literal in ShellFramed, which meant adding `b` was two
+    // edits and forgetting the second left the window advertising a keymap it
+    // no longer had.
+    //
+    // `label` is what the legend shows; an entry without one is a working key
+    // that is simply not advertised, which is how alternates like Ctrl+W live
+    // alongside the key they duplicate. `priority` is the order entries are
+    // given up as the window narrows, lowest first -- see Frame.
+    //
+    // `advertised` gates the legend and nothing else. `project.md` asks that
+    // only bindings backed by a live capability be *advertised*, and that
+    // every action stay reachable by key at every size; a key that silently
+    // stops working is a different and worse thing than one that stops being
+    // mentioned.
+    //
+    // `action` receives the key that matched, so one entry can cover a
+    // direction pair without splitting into two rows that each advertise half
+    // a label.
+    readonly property var windowBindings: [
+        {
+            "keys": [Qt.Key_S],
+            "label": "[s]treams",
+            "priority": 100,
+            "advertised": root.audioServiceReady,
+            "action": key => {
+                root.streamsVisible = !root.streamsVisible;
+            }
+        },
+        {
+            // Global bypass is already a setting the core acts on: DbMain
+            // drives a coalescer that calls set_bypass() on both pipelines.
+            // Nothing here decides what bypass means, only that it moved.
+            "keys": [Qt.Key_B],
+            "label": "[b]ypass",
+            "priority": 90,
+            "advertised": root.processingReady,
+            "action": key => {
+                DbMain.bypass = !DbMain.bypass;
+                root.showToast(DbMain.bypass ? "bypassed" : "processing");
+            }
+        },
+        {
+            "keys": [Qt.Key_F, Qt.Key_1, Qt.Key_2],
+            "label": "[f]rame",
+            "priority": 60,
+            "advertised": true,
+            "action": key => keyLayer.setShell(key === Qt.Key_F ? (root.shellIndex + 1) % root.shells.length : Math.min(root.shells.length - 1, key - Qt.Key_1))
+        },
+        {
+            "keys": [Qt.Key_Minus, Qt.Key_BracketLeft, Qt.Key_Plus, Qt.Key_Equal, Qt.Key_BracketRight],
+            "label": "[-/+] density",
+            "priority": 40,
+            "advertised": true,
+            "action": key => keyLayer.setBarWidth(root.barWidth + (key === Qt.Key_Minus || key === Qt.Key_BracketLeft ? -2 : 2))
+        },
+        {
+            "keys": [Qt.Key_Q],
+            "label": "[q]uit",
+            "priority": 50,
+            "advertised": true,
+            "action": key => Qt.quit()
+        },
+        {
+            // Dismisses transient controls and nothing else. Escape must never
+            // fall through to something that stops audio.
+            "keys": [Qt.Key_Escape],
+            "priority": 0,
+            "advertised": false,
+            "action": key => {
+                root.streamsVisible = false;
+            }
+        },
+        {
+            "keys": [Qt.Key_W],
+            "modifiers": Qt.ControlModifier,
+            "priority": 0,
+            "advertised": false,
+            "action": key => Qt.quit()
+        }
+    ]
+
+    // While the mixer is up it takes the keys it needs; everything else still
+    // falls through to the window table.
+    readonly property var mixerBindings: [
+        {
+            "keys": [Qt.Key_M],
+            "label": "[m]ute",
+            "priority": 100,
+            "advertised": root.streamCount > 0,
+            "action": key => keyLayer.streams.toggleMute()
+        },
+        {
+            "keys": [Qt.Key_P],
+            "label": "[p]rocess",
+            "priority": 90,
+            "advertised": root.streamCount > 0,
+            "action": key => keyLayer.streams.toggleProcessing()
+        },
+        {
+            "keys": [Qt.Key_Left, Qt.Key_Right],
+            "label": "←/→ volume",
+            "priority": 80,
+            "advertised": root.streamCount > 0,
+            "action": key => keyLayer.streams.nudgeVolume(key === Qt.Key_Left ? -0.05 : 0.05)
+        },
+        {
+            "keys": [Qt.Key_Escape],
+            "label": "[Esc] close",
+            "priority": 70,
+            "advertised": true,
+            "action": key => {
+                root.streamsVisible = false;
+            }
+        },
+        {
+            "keys": [Qt.Key_Up, Qt.Key_Down],
+            "priority": 0,
+            "advertised": false,
+            "action": key => keyLayer.streams.moveSelection(key === Qt.Key_Up ? -1 : 1)
+        }
+    ]
+
+    // What the chrome may advertise, in declaration order. Deliberately free
+    // of anything that changes per frame: this rebuilds when a capability or
+    // the stream count moves, not when the spectrum does.
+    readonly property var legendItems: (root.streamsVisible ? root.mixerBindings : root.windowBindings).filter(b => b.advertised && b.label !== undefined).map(b => ({
+                "label": b.label,
+                "priority": b.priority
+            }))
 
     // Key handling sits on a focused Item rather than on Shortcut: Shortcut
     // never fired here under Hyprland, and this is the form that works.
@@ -160,88 +319,31 @@ Window {
             root.showToast(root.shells[index].name);
         }
 
+        function dispatch(table, event) {
+            for (let i = 0; i < table.length; i++) {
+                const binding = table[i];
+
+                if (binding.keys.indexOf(event.key) < 0)
+                    continue;
+
+                // An entry naming modifiers requires them; one that does not
+                // is indifferent to them, which is how `q` has always behaved.
+                if (binding.modifiers !== undefined && (event.modifiers & binding.modifiers) !== binding.modifiers)
+                    continue;
+
+                binding.action(event.key);
+                event.accepted = true;
+                return true;
+            }
+
+            return false;
+        }
+
         Keys.onPressed: event => {
-            const ctrl = (event.modifiers & Qt.ControlModifier) !== 0;
-
-            // While the mixer is up it takes the keys it needs; everything
-            // else still falls through to the window.
-            if (root.streamsVisible && keyLayer.streams !== null) {
-                switch (event.key) {
-                case Qt.Key_Up:
-                    keyLayer.streams.moveSelection(-1);
-                    event.accepted = true;
-                    return;
-                case Qt.Key_Down:
-                    keyLayer.streams.moveSelection(1);
-                    event.accepted = true;
-                    return;
-                case Qt.Key_Left:
-                    keyLayer.streams.nudgeVolume(-0.05);
-                    event.accepted = true;
-                    return;
-                case Qt.Key_Right:
-                    keyLayer.streams.nudgeVolume(0.05);
-                    event.accepted = true;
-                    return;
-                case Qt.Key_M:
-                    keyLayer.streams.toggleMute();
-                    event.accepted = true;
-                    return;
-                case Qt.Key_P:
-                    keyLayer.streams.toggleProcessing();
-                    event.accepted = true;
-                    return;
-                default:
-                    break;
-                }
-            }
-
-            switch (event.key) {
-            case Qt.Key_S:
-                root.streamsVisible = !root.streamsVisible;
-                break;
-            case Qt.Key_B:
-                // Global bypass is already a setting the core acts on: DbMain
-                // drives a coalescer that calls set_bypass() on both pipelines.
-                // Nothing here decides what bypass means, only that it moved.
-                DbMain.bypass = !DbMain.bypass;
-                root.showToast(DbMain.bypass ? "bypassed" : "processing");
-                break;
-            case Qt.Key_F:
-                keyLayer.setShell((root.shellIndex + 1) % root.shells.length);
-                break;
-            case Qt.Key_1:
-            case Qt.Key_2:
-                keyLayer.setShell(Math.min(root.shells.length - 1, event.key - Qt.Key_1));
-                break;
-            case Qt.Key_Minus:
-            case Qt.Key_BracketLeft:
-                keyLayer.setBarWidth(root.barWidth - 2);
-                break;
-            case Qt.Key_Plus:
-            case Qt.Key_Equal:
-            case Qt.Key_BracketRight:
-                keyLayer.setBarWidth(root.barWidth + 2);
-                break;
-            case Qt.Key_Escape:
-                // Dismisses transient controls and nothing else. Hiding the
-                // mixer must never touch the graph, and Escape must never
-                // fall through to something that stops audio.
-                root.streamsVisible = false;
-                break;
-            case Qt.Key_Q:
-                Qt.quit();
-                break;
-            case Qt.Key_W:
-                if (!ctrl)
-                    return;
-                Qt.quit();
-                break;
-            default:
+            if (root.streamsVisible && keyLayer.streams !== null && keyLayer.dispatch(root.mixerBindings, event))
                 return;
-            }
 
-            event.accepted = true;
+            keyLayer.dispatch(root.windowBindings, event);
         }
     }
 

@@ -21,14 +21,64 @@ Item {
     property bool spectrumFlowing: true
     property int streamCount: 1
 
+    // The legend is handed down as data. See Main: the same table drives the
+    // key handler, so a binding cannot change without the legend changing with
+    // it.
+    property var legendItems: []
+
     readonly property alias streamPanel: surface.streamPanel
 
+    // Horizontal inset is larger than vertical on purpose -- see above. Named
+    // because the minimum size has to account for them, and two statements of
+    // the same inset is one chance for the floor to disagree with the layout.
+    readonly property real insetX: 16
+    readonly property real insetY: 6
+
+    // Framed chrome costs a title row, a legend row and the border's air on
+    // every edge, and none of that shrinks with the window. Below this the
+    // frame would consume the signal it exists to surround -- at 160x60 it
+    // consumed all of it, and the window drew no spectrum at all.
+    //
+    // Measured against the *bypassed* title rather than the current one, so
+    // that pressing `b` cannot move the floor under a window already sitting
+    // near it.
+    readonly property real minimumWidth: 2 * insetX + Math.max(
+        surface.minimumWidth + 2 * (frame.thickness + frame.contentPad),
+        frame.labelInset + titleFont.advanceWidth(shell.bypassTitle) + frame.labelPad + frame.radius + frame.thickness)
+
+    // Measured from the font, not from the Frame's own labels. Reading
+    // frame.topInset here made the floor depend on whether the label was
+    // visible -- and QML propagates visibility to children, so hiding the
+    // shell because the window was too small collapsed the insets, lowered the
+    // floor, and made the window large enough again. The window latched
+    // between the two, reporting a size it already had.
+    //
+    // A frame's vertical cost is two half-label heights per labelled edge plus
+    // the border and its air, and none of that depends on what is on screen.
+    readonly property real labelHalfHeight: Math.max(0, titleFont.height / 2 - frame.thickness / 2)
+
+    readonly property real minimumHeight: 2 * insetY + surface.minimumHeight
+        + 2 * (frame.thickness + frame.contentPad) + 4 * labelHalfHeight
+
+    // Both forms, so the widest is measurable without restating it.
+    readonly property string idleTitle: "42Hz"
+    readonly property string bypassTitle: "42Hz  ·  bypassed"
+
+    FontMetrics {
+        id: titleFont
+
+        font.family: Theme.fontFamily
+        font.pixelSize: Theme.fontBaseSize
+    }
+
     Frame {
+        id: frame
+
         anchors.fill: parent
-        anchors.topMargin: 6
-        anchors.bottomMargin: 6
-        anchors.leftMargin: 16
-        anchors.rightMargin: 16
+        anchors.topMargin: shell.insetY
+        anchors.bottomMargin: shell.insetY
+        anchors.leftMargin: shell.insetX
+        anchors.rightMargin: shell.insetX
 
         // Top left is identity and state, and global bypass is state: with the
         // pipelines in passthrough the spectrum looks exactly as it does with
@@ -37,11 +87,9 @@ Item {
         // Bare mode draws none of this, by construction. That is the mode's
         // whole commitment, and the toast on the keypress is what reports it
         // there.
-        title: DbMain.bypass ? "42Hz  ·  bypassed" : "42Hz"
+        title: DbMain.bypass ? shell.bypassTitle : shell.idleTitle
 
-        // Only bindings that exist are advertised, and the legend follows what
-        // the keyboard will actually do next.
-        legend: shell.streamsVisible ? "[m]ute   [p]rocess   ←/→ volume   [Esc] close" : "[s]treams   [b]ypass   [f]rame   [-/+] density   [q]uit"
+        legendItems: shell.legendItems
 
         Surface {
             id: surface

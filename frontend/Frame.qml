@@ -23,7 +23,48 @@ Item {
     property color accentColor: Theme.accent
 
     property string title: ""
-    property string legend: ""
+
+    // The legend is a list of bindings, not a sentence. Given a string it can
+    // only overflow: below the width the text needs it runs past the border,
+    // is clipped mid-word, and takes the bottom edge with it, since the line
+    // breaks around a label that is wider than the frame.
+    //
+    // Given the entries it can drop the least important ones instead. Order on
+    // screen is declaration order; the order things are *given up* is
+    // `priority`, lowest first -- so the legend shortens by losing its tail in
+    // importance rather than in position.
+    //
+    // Each entry is { label: string, priority: number }.
+    property var legendItems: []
+
+    readonly property real legendAvailable: Math.max(0, width - labelInset - labelPad - radius - thickness)
+
+    readonly property string legend: {
+        // Named so the binding re-runs when the theme changes the metric:
+        // advanceWidth() is a call, not a property, and would not be tracked.
+        const family = Theme.fontFamily;
+        const size = Theme.fontBaseSize;
+        const available = frame.legendAvailable;
+
+        let shown = frame.legendItems.slice();
+
+        while (shown.length > 0) {
+            const text = shown.map(e => e.label).join(frame.legendSeparator);
+            if (legendFont.advanceWidth(text) <= available)
+                return text;
+
+            let weakest = 0;
+            for (let i = 1; i < shown.length; i++) {
+                if (shown[i].priority < shown[weakest].priority)
+                    weakest = i;
+            }
+            shown.splice(weakest, 1);
+        }
+
+        return "";
+    }
+
+    readonly property string legendSeparator: "   "
 
     // 42Hz's shared line weight, so a frame and a divider cannot end up
     // different thicknesses.
@@ -56,6 +97,13 @@ Item {
         text: frame.title
 
         onWidthChanged: border.requestPaint()
+    }
+
+    FontMetrics {
+        id: legendFont
+
+        font.family: Theme.fontFamily
+        font.pixelSize: Theme.fontBaseSize
     }
 
     TextMetrics {
