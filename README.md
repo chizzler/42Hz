@@ -10,8 +10,8 @@ that tracks the active Omarchy theme.
 Design and constraints are in [`project.md`](project.md); the development record
 is in [`docs/dev-diary.md`](docs/dev-diary.md).
 
-**Status:** milestones 1, 3 and 4 complete; milestone 2 all but a whole-theme
-switch under load.
+**Status:** milestones 1 and 3 complete; milestone 4 but for its audio profiles;
+milestone 2 all but a whole-theme switch under load.
 
 ## What it does
 
@@ -38,6 +38,13 @@ part of the picture it applies to. Its bands are spread logarithmically across
 frequencies it moves. It is in the chain from startup and stays there: showing,
 hiding or resizing the editor leaves the audio graph untouched, and `b` bypasses
 the equalizer itself rather than rebuilding the pipeline around it.
+
+A small set of named audio profiles ships with it — `flat`, `loudness`,
+`speech`, `bass`, `soft` — cycled with `p` from the editor. They are creative
+control rather than correction: Omarchy's speaker tunings compensate for
+measured hardware, and these do not. Each is stored as a curve rather than a
+list of gains, so it lands on the right frequencies whatever the band count, and
+adjusting any band leaves the profile rather than silently claiming it.
 
 Two chrome modes switch from the keyboard, every action is reachable by key at
 every size, and key hints are drawn in the theme's accent. Palette, typography

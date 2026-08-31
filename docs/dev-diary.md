@@ -11,6 +11,38 @@ Detailed evidence is in `docs/spike-*.md`.
 
 ---
 
+## 2026-08-31 (late, second pass) — Audio profiles, scoped
+
+No code. The design for a shipped set of EQ curves, written into `project.md`
+before building it.
+
+**Rejected: the core's preset system.** `PresetsManager` has
+`loadLocalPresetFile()` and would work, but its presets are whole-pipeline JSON
+in the user's config directory and loading one sets the plugins list — which
+fights the rule that 42Hz's chain is exactly `equalizer#0`. It also brings add,
+rename, import, export, community presets and per-device autoload, all of which
+`project.md` defers. A table in the frontend has no file, no install step and no
+way to collide with the chain.
+
+**A profile is a curve, not ten gains.** Anchor points in Hz and dB,
+interpolated onto whatever `calculateFrequencies()` produced. Ten hard-coded
+numbers would be welded to `numBands = 10`, so changing the band count later
+would move every curve to the wrong frequencies without anything failing.
+Linear in log-frequency and linear in dB, holding the end value outside the
+outermost anchors so an anchor at 60 Hz behaves as a shelf.
+
+**Creative control, not correction.** Omarchy already ships speaker tunings
+fitted by measurement. These are a different job, and naming them for genres
+would blur the two — so they are named for what they do: `flat`, `loudness`,
+`speech`, `bass`, `soft`.
+
+Applying one writes the same band gains the editor writes, and nudging a band
+drops the name rather than qualifying it.
+
+Milestone 4 now owns this and is no longer closed.
+
+---
+
 ## 2026-08-31 (late) — The equalizer
 
 **Commit:** `354d940`

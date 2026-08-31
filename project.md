@@ -7,8 +7,9 @@ spectrum-first Qt/QML one.
 
 - **Public name:** 42Hz **Executable:** `42hz` **Application ID:** `io.github.chizzler.42Hz`
 - **Upstream base:** EasyEffects `v8.2.8`, GPL-3.0-or-later
-- **Status:** milestones 1, 3 and 4 complete; milestone 2 all but a whole-theme
-  switch under load. Chronology is in [`docs/dev-diary.md`](docs/dev-diary.md).
+- **Status:** milestones 1 and 3 complete; milestone 4 but for its audio
+  profiles; milestone 2 all but a whole-theme switch under load. Chronology is
+  in [`docs/dev-diary.md`](docs/dev-diary.md).
 
 This document records what is true about the design: the decisions, and the
 constraints that were expensive to discover. It carries no dates and no
@@ -71,18 +72,23 @@ production. 42Hz is a focused frontend over a minimally changed core.
 
 First release: responsive spectrum in two appearances; application-stream mixer
 with volume, mute and processing inclusion; pipeline and endpoint state; global
-bypass; on-demand output equalizer; keyboard and pointer navigation at every
-size; live Omarchy palette and typography; explicit capability feedback;
-one-command Arch installation.
+bypass; on-demand output equalizer with a small set of shipped audio profiles;
+keyboard and pointer navigation at every size; live Omarchy palette and
+typography; explicit capability feedback; one-command Arch installation.
 
 Not in it: reproducing every EasyEffects screen or effect; a new audio engine or
 session manager; a shell plugin or daemon; prescribing window size or placement;
 modifying Hyprland or Omarchy configuration; decoration that does not improve
 signal reading, mixing, navigation or state awareness.
 
-Preset management, input-effects editing, the full effect catalogue and advanced
-routing may follow. The architecture must preserve a path to them without
-exposing unfinished controls.
+Preset *management* — user-created presets, files, import and export, community
+presets, per-device autoload — is not in the first release. The shipped audio
+profiles below are not that: they are read-only starting points held in the
+frontend, with no file, no directory and nothing to manage.
+
+Input-effects editing, the full effect catalogue and advanced routing may follow.
+The architecture must preserve a path to them without exposing unfinished
+controls.
 
 ## Architecture
 
@@ -275,8 +281,8 @@ capability; the action never is.
 The mixer and the editor are mutually exclusive: both want the bottom of the
 surface and both want the arrow keys. While the mixer is up it takes `↑`/`↓`
 (select), `←`/`→` (volume), `m` (mute) and `p` (processing inclusion); while the
-editor is up it takes `←`/`→` (band), `↑`/`↓` (gain) and `0` (flat). Everything
-else still reaches the window, `b` included.
+editor is up it takes `←`/`→` (band), `↑`/`↓` (gain), `p` (cycle audio profile)
+and `0` (flat). Everything else still reaches the window, `b` included.
 
 42Hz may ship optional example Hyprland rules, but installation never applies
 them.
@@ -510,6 +516,51 @@ calling `advanceWidth()` in a binding, and there is no dynamic form that
 notifies. The editor therefore holds the gains as its own array, seeded from the
 settings and written through on change.
 
+### Audio profiles
+
+The first release ships a handful of named EQ curves, read-only, selected in the
+editor. They are **creative control, not correction.** Omarchy already ships
+speaker tunings that compensate for measured hardware, and those are a different
+job done in a different place — a 42Hz profile changes how something sounds
+because someone wanted it to, and must never read as a fix for a device.
+
+**A profile is a curve, not a list of gains.** Each is a handful of anchor points
+in Hz and dB, interpolated onto whatever frequencies `calculateFrequencies()`
+actually produced. Storing ten numbers instead would weld every profile to
+`numBands = 10`, so changing the band count would silently move every curve to
+the wrong frequencies. Interpolation is linear in log-frequency and linear in dB
+— dB is already logarithmic, so a straight line between two anchors is the
+straight line a reader sees — and outside the outermost anchors the end value is
+held rather than extrapolated, which is what makes an anchor at 60 Hz behave as a
+shelf rather than diverging toward zero.
+
+**They are not stored in the core's preset system.** `PresetsManager` handles
+whole-pipeline presets as JSON in the user's config directory, and loading one
+sets the plugins list — which would fight the rule that 42Hz's chain is exactly
+`equalizer#0`. It also brings add, rename, remove, import, export, community
+presets and per-device autoload, none of which is in this release. A table in the
+frontend has no file, no install step, no directory to resolve, and cannot
+collide with the chain.
+
+**Applying one writes the same band gains the editor writes.** There is no second
+mechanism and no mode: a profile is a starting point, and the moment a band is
+nudged the window has left it. The name is then dropped rather than qualified —
+a window claiming a profile it is no longer on is the same failure as a spectrum
+that always fills.
+
+The set, named for what each does rather than for a genre:
+
+| profile | what it does |
+|---|---|
+| `flat` | the zero curve; the same result as `[0]`, and how the cycle returns |
+| `loudness` | lifts both extremes for quiet listening, following the equal-loudness contours |
+| `speech` | rolls off rumble and lifts 1–4 kHz presence; podcasts and voice chat |
+| `bass` | a low shelf |
+| `soft` | a gentle high cut, for harsh sources and long sessions |
+
+`[p]rofile` cycles them and the name is shown in the editor's readout row, beside
+the selected band's frequency and gain.
+
 ## Omarchy theme integration
 
 Theme integration is functional behaviour, not a one-time approximation at
@@ -703,8 +754,9 @@ Changed packaging warns and continues; changed source refuses to build.
    *reported*, not recovered from; what this verifies is that the report is
    correct and that nothing outlives the failure.
 4. **On-demand EQ** — a responsive output equalizer on the validated LV2
-   provider. Resizing or hiding the editor never interrupts audio, and
-   missing-plugin behaviour stays honest and recoverable.
+   provider, with the shipped audio profiles selectable from the editor.
+   Resizing or hiding the editor never interrupts audio, and missing-plugin
+   behaviour stays honest and recoverable.
 5. **Omarchy integration hardening** — live palette, font, scale, light/dark and
    contrast behaviour across representative themes. Diagnostics and command
    controls, PipeWire recovery and forced termination, reproducible Arch package.
