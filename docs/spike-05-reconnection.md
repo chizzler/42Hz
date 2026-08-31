@@ -1,8 +1,8 @@
 # Spike 05 — Recovering from a PipeWire restart
 
-Design for the reconnection work. Nothing here is implemented; this is the
+Design for the reconnection work. **Nothing here is implemented.** It is the
 result of reading the derived core closely enough to know what implementing it
-costs, written down so that the next session executes rather than rediscovers.
+costs, written so the next session executes rather than rediscovers.
 
 Established by measurement in the diary entry for `76fe070`, which fixed the
 adjacent and much smaller problem: 42Hz no longer *dies* when PipeWire restarts.
@@ -125,18 +125,14 @@ reconnection.
 
 ## Cost, and whether it belongs here at all
 
-This would be the largest entry in the patch inventory by a wide margin, and it
-lands in the least forgiving part of the core: tearing down a connection the
-server has already dropped, where the failure mode is a use-after-free that
-presents as the process disappearing — the exact symptom `76fe070` just removed.
-Every iteration needs a real `systemctl --user restart pipewire`.
+This would be the largest entry in the patch inventory by a wide margin, in the
+least forgiving part of the core: tearing down a connection the server has
+already dropped, where the failure mode is a use-after-free presenting as the
+process disappearing — the exact symptom `76fe070` removed. Every iteration
+needs a real `systemctl --user restart pipewire`.
 
-**Upstream EasyEffects has the identical bug**, from the identical code. Per
-`project.md`, generally useful backend fixes may be offered upstream, and this
-is the clearest candidate the project has produced: it is not a 42Hz concern,
-it costs upstream nothing to want, and carrying it locally means carrying the
-riskiest patch in the inventory across every version bump.
-
-Offering it upstream is not a prerequisite for progress and should not block
-milestone 3. But the choice between *carry it* and *contribute it* should be
-made deliberately before the code is written, not discovered afterwards.
+**Upstream EasyEffects has the identical bug, from the identical code**, which
+makes it the clearest upstream-contribution candidate the project has produced:
+carrying it locally means carrying the riskiest patch in the inventory across
+every version bump. Choose *carry* or *contribute* before the code is written,
+not after.
