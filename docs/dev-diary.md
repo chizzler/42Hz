@@ -13,6 +13,8 @@ Detailed evidence is in `docs/spike-*.md`.
 
 ## 2026-08-31 (night, second pass) — The theme switch under load, and what testing it found
 
+**Commit:** `8dcf37d`
+
 Milestone 2's last item. Three sessions had recorded it as unverifiable because
 theme state is machine-global, so switching meant switching the user's desktop.
 That was wrong. `omarchy-theme-set` swaps themes with two filesystem
