@@ -69,6 +69,15 @@ Item {
     // it.
     property var legendItems: []
 
+    // See Frame: the label the bottom edge promises room for, and what the
+    // floor below is measured against.
+    property string legendFloorLabel: ""
+
+    // Raised when a legend label is clicked. Forwarded rather than acted on:
+    // the shell reports what was pressed and the window decides what it means,
+    // exactly as the steppers do.
+    signal legendActivated(var keys)
+
     readonly property alias streamPanel: surface.streamPanel
     readonly property alias eqPanel: surface.eqPanel
 
@@ -88,7 +97,8 @@ Item {
     // near it.
     readonly property real minimumWidth: 2 * insetX + Math.max(
         surface.minimumWidth + 2 * (frame.thickness + frame.contentPad),
-        frame.labelInset + shell.titleWidth + frame.labelPad + frame.radius + frame.thickness)
+        frame.labelInset + shell.titleWidth + frame.labelPad + frame.radius + frame.thickness,
+        frame.minimumLegendWidth)
 
     // Measured through `titleFont.font` rather than by calling advanceWidth()
     // alone: the call captures no dependency, so the floor would stop
@@ -139,6 +149,9 @@ Item {
         title: shell.bypassed ? shell.bypassTitle : shell.idleTitle
 
         legendItems: shell.legendItems
+        legendFloorLabel: shell.legendFloorLabel
+
+        onLegendActivated: keys => shell.legendActivated(keys)
 
         // Top right, on the line, btop-style. These are the spectrum's own
         // adjustments rather than actions on the audio, which is why they sit
@@ -165,7 +178,7 @@ Item {
                 id: style
 
                 value: shell.spectrumStyle
-                values: ["bars", "cells"]
+                values: ["bars", "cells", "dots"]
 
                 decrementGlyph: "["
                 incrementGlyph: "]"

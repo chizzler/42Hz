@@ -109,7 +109,7 @@ Item {
         anchors.bottom: surface.panelVisible ? divider.top : parent.bottom
         anchors.bottomMargin: surface.panelVisible ? surface.gutter : 0
 
-        sourceComponent: surface.spectrumStyle === "cells" ? cellsStyle : barsStyle
+        sourceComponent: surface.spectrumStyle === "cells" ? cellsStyle : (surface.spectrumStyle === "dots" ? dotsStyle : barsStyle)
 
         onLoaded: item.points = Qt.binding(() => surface.points)
     }
@@ -127,6 +127,14 @@ Item {
         id: cellsStyle
 
         SpectrumCells {
+            barWidth: surface.barWidth
+        }
+    }
+
+    Component {
+        id: dotsStyle
+
+        SpectrumDots {
             barWidth: surface.barWidth
         }
     }

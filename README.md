@@ -17,8 +17,10 @@ remain.
 
 The window is a live spectrum showing **absolute level** — a bar's height is the
 magnitude the core reported, placed in a fixed dB window, so quiet audio draws a
-quiet spectrum rather than a rescaled copy of a loud one. Two appearances, filled
-pixel bars and a character grid of block elements, both reading the same window.
+quiet spectrum rather than a rescaled copy of a loud one. Three appearances —
+filled pixel bars, a character grid of block elements, and a painted lattice of
+discrete dots — all reading the same window, each drawn from elements the eye can
+count rather than a single filled shape.
 Density and style are adjusted from btop-style controls in the frame's top edge,
 and dropped when the window is too narrow to hold them beside the title.
 
@@ -29,7 +31,10 @@ an empty window.
 An application mixer lists live playback streams with volume, mute and
 processing-inclusion controls. Its volume reading is the one `pactl`, `wpctl` and
 Omarchy's volume OSD show, so a stream reads the same here as anywhere else on
-the desktop and the arrow keys step by the same 5%. When the window is too short
+the desktop and the arrow keys step by the same 5%. It is drivable by pointer too:
+click a row to select it, drag its volume bar anywhere along the track, and click
+the mute or processing column — which shows the word a click would turn on when
+you hover it. When the window is too short
 to draw every stream, the count it cannot show is marked on the divider.
 
 A ten-band graphic equalizer sits in front of the spectrum, so a boost lifts the
@@ -37,7 +42,9 @@ part of the picture it applies to. Its bands are spread logarithmically across
 20 Hz–20 kHz — the spectrum's own axis — so each control sits directly under the
 frequencies it moves. It is in the chain from startup and stays there: showing,
 hiding or resizing the editor leaves the audio graph untouched, and `b` bypasses
-the equalizer itself rather than rebuilding the pipeline around it.
+the equalizer itself rather than rebuilding the pipeline around it. Bands are
+draggable as well as keyed — press anywhere in a band's column and pull, and the
+band you grabbed is the one that moves.
 
 A small set of named audio profiles ships with it — `flat`, `loudness`,
 `speech`, `bass`, `soft` — cycled with `p` from the editor. They are creative

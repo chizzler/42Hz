@@ -11,6 +11,127 @@ Detailed evidence is in `docs/spike-*.md`.
 
 ---
 
+## 2026-08-31 (night, fourth pass) — A third spectrum, and a window a pointer can drive
+
+Three things, and the last one is the theme: every control this window draws is
+now reachable with a mouse, not just documented for the keyboard.
+
+**The cell grid was drawing a filled silhouette.** Block elements tile
+seamlessly by design, so a grid laid out at the font's own advance and line
+height has cells the reader cannot see — a bar renderer with worse resolution,
+which is not what the style is for. Every cell now has air on all four sides:
+`letterSpacing` horizontally, row pitch vertically. A spacer cell was the obvious
+way to get the horizontal division and the wrong one — at the default density a
+column is a single cell wide, so it would have halved the number of columns the
+window can hold, paying for the divisions in signal.
+
+**The divisions had to absorb the layout remainder, and that fixed an older
+bug.** A whole number of cells divides the height with something left over, and
+parked at the top that leftover meant every level was drawn into a shorter box
+than the one the bars use. Measured against a flat tone at −20, −45 and −70 dB,
+cells read 150/95/42 px against the bar renderer's 167/107/48. Stretching the air
+instead lands the grid exactly on the item's edges: 169/106/48, and the *old*
+code's 168/112/57 was already out by up to 9 px before any of this. The style
+that was supposed to agree with the bars had never quite agreed with them.
+
+**A third appearance: `dots`**, a painted lattice of discrete circles that owns
+its geometry rather than inheriting the font's. Each dot takes its ramp colour
+from its own height, so the gradient reads across the whole picture instead of
+per column, and the tip dot is drawn at the fraction's opacity — rounding it is
+what makes a dot matrix strobe when a column crosses a lattice boundary at 60 Hz.
+Nothing unlit is drawn: an LED matrix shows its dark dots because it has them,
+and a faint dot in every unlit position would put a permanent picture across a
+window whose silence is reported in words.
+
+**`[e]q` was a stub, by this project's own rule.** `project.md` forbids eliding a
+component to a stub — "a column reserving the width of a word to render `S…`" —
+and `eq` sat next to a fully spelled `[s]treams` while nothing else in 42Hz calls
+it that. It is `[e]qualizer` now, with `[e]q` declared as a *second name* rather
+than a truncation, and the legend collapses to the short form before it drops
+anything: a binding named briefly is still named. Measured against the real
+frame — 274 px shows all three labels, 219 px collapses, 165 px drops the
+equalizer, 71 px is `[q]uit` alone.
+
+**`[q]uit` is the last label standing**, and the framed floor now includes room
+for it. A frame drawing a bottom edge with nothing on it has stopped documenting
+itself. The floor is measured against a label the shell names in advance, not
+against the live legend: the items change when a panel is revealed, and a derived
+floor would rise as the mixer opened and shift under a window already sitting on
+it — the trap the title floor already avoids by measuring the bypassed form. At
+71 px it is not the binding constraint today; the surface minimum is 152 px.
+
+**A legend label is a control.** Clicking one runs its binding, down the same
+route a keypress takes rather than by calling the action directly — a pointer
+must not reach anything a key could not, and a second copy of the panel-first
+dispatch order is one chance for the two to disagree. Labels naming a direction
+pair are the exception: a click between two arrows has said nothing about which
+way, so `←/→ volume` stays a caption with no pointer affordance.
+
+**The mixer's state columns were readouts that collapsed to nothing**, which cost
+two things: the row reflowed the moment a stream muted, and a state that is *off*
+had nowhere for a pointer to press. They hold their width now — already reserved
+in the layout arithmetic either way, so it takes nothing from the columns beside
+them — and under the pointer an off column shows the word a click would turn on,
+dimmed. A hover-only affordance on purpose: it tells a pointer what a press would
+do, and whoever reads it already has one.
+
+**The volume bar was 12% of the room the row had to spend.** It is the one
+control here read by comparing lengths across rows, and at a fixed 4 em in a
+600 px panel it was a dash. It takes a share of the spare width now, floored at
+what it was promised, and thicker in proportion. Press anywhere along the track;
+there is no handle to catch, because a bar a few pixels tall with a handle is a
+control a pointer cannot land on. Unrounded, too — the 5% step exists so a *key*
+moves by the same amount as the rest of the desktop, and a pointer has already
+said where it wants to be.
+
+**A live drag draws the pointer's value, not the node's.** The write goes out on
+every move, but what comes back is the graph's answer a round trip later, and
+drawing that makes the bar trail the hand. Same reason the easing is disabled
+while a drag is live: a keyboard step lands the bar somewhere new and gliding
+carries the eye there, but easing towards a pointer reads as lag. The list is a
+`Flickable`, so the drag has to claim the press outright or a scroll takes it
+halfway through.
+
+**The equalizer's control is the band's slot, not its bar.** Bars are drawn at
+55% of the slot and vanish entirely at 0 dB, so hit areas cut to the bars would
+be a row of targets with gaps between them and nothing at all to press on a flat
+curve. One surface spans the track and divides it the way the bands divide it. A
+drag holds the band it grabbed rather than following x — painting across
+neighbours is a fine gesture to offer deliberately and a poor one to hand
+somebody who drifted sideways pulling a band up. Zero is a detent, which is not
+the quantising the volume bar refuses: rounding a whole range overrides what the
+pointer said, a detent gives it the one value it was plainly reaching for.
+
+**A pointer's coordinate runs to `height − 1`.** Mapping gain over the full
+height put the lower rail one pixel past anywhere the pointer could land, so full
+boost was reachable and full cut was not. Found by a test asserting both rails,
+which is the only reason it was found at all.
+
+### Verified
+
+The three spectrum styles agree on height within 2 px across the dB window.
+Legend thresholds and the framed floor were measured against the real `Frame`
+rather than estimated from character counts. Seventeen pointer behaviours —
+eight in the mixer, nine in the equalizer — were driven through `qmltestrunner`
+with synthetic press, move, hover and click against the real components,
+including that the list does not steal a volume drag and that a band drifted over
+mid-drag is left alone. Release builds clean from a deleted build tree.
+
+### Open
+
+**The pointer harness is not in the repository.** It stubs `ee.ui` — Theme,
+ModelNodes, PwManager and the equalizer's per-channel settings objects, whose
+band values are flat properties with no dynamic form that notifies — and drives
+the real QML files. It found the rail bug and would have found the cell-height
+disagreement years earlier than eyeballing did. Landing it means a stub tree and
+CMake wiring, and that decision has not been made.
+
+Nothing here has run against live audio. The verification is offscreen against
+the frontend files, so what is confirmed is geometry, dispatch and state, not
+what a stream sounds like when a band is dragged.
+
+---
+
 ## 2026-08-31 (night, third pass) — The clean cycle, before packaging
 
 **Commit:** `065b15e`

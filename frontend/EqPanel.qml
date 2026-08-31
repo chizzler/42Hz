@@ -131,20 +131,33 @@ Item {
         panel.selected = Math.max(0, Math.min(panel.bandCount - 1, panel.selected + delta));
     }
 
-    function nudgeGain(delta) {
-        if (!panel.ready || panel.bandCount === 0)
+    // One band to one value, whatever moved it. The keyboard steps from where
+    // the band is; a pointer says where it should be. Both land here, so
+    // neither gets its own copy of the clamp or of the rule that editing a band
+    // leaves the profile.
+    function setGain(i, value) {
+        if (!panel.ready || i < 0 || i >= panel.bandCount || panel.gains.length <= i)
             return;
 
-        const i = panel.selected;
-        const value = Math.max(-panel.gainLimit, Math.min(panel.gainLimit, panel.gains[i] + delta));
+        const v = Math.max(-panel.gainLimit, Math.min(panel.gainLimit, value));
 
-        panel.writeBand(i, value);
+        if (v === panel.gains[i])
+            return;
+
+        panel.writeBand(i, v);
 
         const next = panel.gains.slice();
-        next[i] = value;
+        next[i] = v;
         panel.gains = next;
 
         panel.profileIndex = -1;
+    }
+
+    function nudgeGain(delta) {
+        if (!panel.ready || panel.bandCount === 0 || panel.gains.length <= panel.selected)
+            return;
+
+        panel.setGain(panel.selected, panel.gains[panel.selected] + delta);
     }
 
     // Applying one writes the same band gains the editor writes. There is no
@@ -226,6 +239,21 @@ Item {
     readonly property color railColor: Theme.withAlpha(Theme.foreground, Theme.controlBorderAlpha)
     readonly property color idleBand: Theme.withAlpha(Theme.accent, 0.55)
 
+    // A band under the pointer, but not the selected one. Between the two, so
+    // it reads as "this is what you would grab" without claiming to be the
+    // band the arrow keys are on.
+    readonly property color hoverBand: Theme.withAlpha(Theme.accent, 0.8)
+
+    // Zero is a real position on this control, not just a number between two
+    // others: it is the response the whole curve is measured against, and
+    // `[0]` exists precisely because getting back to it matters. Landing on it
+    // by hand within a fraction of a dB is luck, so the last fraction is given.
+    //
+    // This is a detent at a meaningful value, not the quantising the volume bar
+    // refuses. Rounding a whole range to steps overrides what the pointer said;
+    // a detent gives it the one value it was obviously reaching for.
+    readonly property real zeroDetent: 0.4
+
     // Bypassed, the curve is still drawn -- it is the setting, and hiding it
     // would make the panel look empty rather than switched off -- but in the
     // muted role, so the state is visible at a glance rather than only in a
@@ -296,7 +324,21 @@ Item {
                     height: Math.abs(span)
                     visible: height >= 1
                     y: span >= 0 ? band.height / 2 - height : band.height / 2
-                    color: band.selected ? panel.activeBand : panel.idleBand
+                    color: band.selected ? panel.activeBand
+                        : (band.index === curve.hovered ? panel.hoverBand : panel.idleBand)
+
+                    // A dragged band follows the pointer; a stepped one glides.
+                    // Same rule as the mixer's volume bar, and the same reason:
+                    // easing towards a pointer reads as the control lagging
+                    // behind the hand.
+                    Behavior on height {
+                        enabled: curve.held < 0
+
+                        NumberAnimation {
+                            duration: 90
+                            easing.type: Easing.OutCubic
+                        }
+                    }
                 }
 
                 // Selection is marked on the zero line under the band itself.
@@ -313,6 +355,75 @@ Item {
                     visible: band.selected
                 }
             }
+        }
+
+        // One surface over the whole track rather than a hit area per band.
+        // The bars are drawn at 55% of their slot and vanish entirely at 0 dB,
+        // so per-band targets would be a row of controls with gaps between them
+        // and nothing at all to press on a flat curve. The slot is the control;
+        // the bar is what it draws.
+        MouseArea {
+            id: curve
+
+            anchors.left: parent.left
+            anchors.right: parent.right
+
+            y: panel.trackTop
+            height: panel.trackHeight
+
+            hoverEnabled: true
+
+            // The gesture is vertical, and the cursor says so. Same rule as the
+            // mixer's volume bar, which shows a horizontal one.
+            cursorShape: Qt.SizeVerCursor
+
+            // The band captured on press, and -1 when nothing is held.
+            property int held: -1
+            property int hovered: -1
+
+            // Captured on press and kept for the whole drag. Following x would
+            // let the pointer paint across neighbours, which is a fine gesture
+            // to offer deliberately and a poor one to hand somebody who only
+            // drifted sideways while dragging a band up.
+            function bandAt(x) {
+                const slot = curve.width / Math.max(1, panel.bandCount);
+
+                return Math.max(0, Math.min(panel.bandCount - 1, Math.floor(x / Math.max(1, slot))));
+            }
+
+            // Centre is 0 dB, the rails are the panel's own limit. The scale is
+            // the one the bars are drawn on, so a band lands where the pointer
+            // is rather than where an independent mapping put it.
+            function gainAt(y) {
+                // Measured over `height - 1`, not `height`. A pointer's y runs
+                // 0 .. height - 1, so halving the full height puts the lower
+                // rail one pixel past anywhere it can land: full boost was
+                // reachable and full cut was not.
+                const half = Math.max(1, (curve.height - 1) / 2);
+                const g = panel.gainLimit * (half - y) / half;
+
+                if (Math.abs(g) < panel.zeroDetent)
+                    return 0;
+
+                return g;
+            }
+
+            onPressed: mouse => {
+                curve.held = curve.bandAt(mouse.x);
+                panel.selected = curve.held;
+                panel.setGain(curve.held, curve.gainAt(mouse.y));
+            }
+
+            onPositionChanged: mouse => {
+                curve.hovered = curve.bandAt(mouse.x);
+
+                if (curve.pressed && curve.held >= 0)
+                    panel.setGain(curve.held, curve.gainAt(mouse.y));
+            }
+
+            onReleased: curve.held = -1
+            onCanceled: curve.held = -1
+            onExited: curve.hovered = -1
         }
     }
 

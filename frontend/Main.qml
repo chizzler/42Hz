@@ -265,12 +265,12 @@ Window {
     // this is signal density rather than zoom.
     property int barWidth: 10
 
-    // How the spectrum is drawn. Two genuinely different pictures rather than
-    // variations on one: filled pixel bars, and a character grid built from the
-    // U+2581..U+2588 block elements, which follows `omarchy font set`. Both
-    // read the same fixed dB window, so switching cannot look like the signal
-    // changing.
-    readonly property var spectrumStyles: ["bars", "cells"]
+    // How the spectrum is drawn. Three genuinely different pictures rather than
+    // variations on one: filled pixel bars; a character grid built from the
+    // U+2581..U+2588 block elements, which follows `omarchy font set`; and a
+    // painted dot matrix on a lattice of its own. All three read the same fixed
+    // dB window, so switching cannot look like the signal changing.
+    readonly property var spectrumStyles: ["bars", "cells", "dots"]
 
     property int spectrumStyleIndex: 0
 
@@ -343,6 +343,12 @@ Window {
             if (item.styleStepped !== undefined)
                 item.styleStepped.connect(keyLayer.stepStyle);
 
+            if (item.legendActivated !== undefined)
+                item.legendActivated.connect(keyLayer.activate);
+
+            if (item.legendFloorLabel !== undefined)
+                item.legendFloorLabel = Qt.binding(() => root.legendFloorLabel);
+
             if (item.eqPanel !== undefined && item.eqPanel !== null)
                 item.eqPanel.changed.connect(root.showToast);
         }
@@ -394,7 +400,13 @@ Window {
         {
             // The equalizer editor, and the second thing this window is for.
             "keys": [Qt.Key_E],
-            "label": "[e]q",
+            "label": "[e]qualizer",
+
+            // Named in full where there is room and shortened where there is
+            // not, rather than abbreviated everywhere. `[e]q` next to a
+            // spelled-out `[s]treams` taught the reader that this window has
+            // an "eq" in it, which is not what anything else in 42Hz calls it.
+            "short": "[e]q",
             "priority": 90,
 
             // Backed by the plugin working, not merely existing. The core
@@ -477,7 +489,12 @@ Window {
         {
             "keys": [Qt.Key_Q],
             "label": "[q]uit",
-            "priority": 50,
+
+            // The strongest, so it is the last label standing as the window
+            // narrows -- and the one the framed floor is measured against. A
+            // window too small to say how to leave it is a window too small,
+            // which is the report rather than the drawing.
+            "priority": 200,
             "advertised": true,
             "action": key => Qt.quit()
         },
@@ -588,12 +605,44 @@ Window {
     // What the chrome may advertise, in declaration order. Deliberately free
     // of anything that changes per frame: this rebuilds when a capability or
     // the stream count moves, not when the spectrum does.
-    readonly property var legendItems: (root.streamsVisible ? root.mixerBindings
-        : root.eqVisible ? root.eqBindings
-        : root.windowBindings).filter(b => b.advertised && b.label !== undefined).map(b => ({
+    readonly property var legendItems: root.activeBindings.filter(b => b.advertised && b.label !== undefined).map(b => ({
                 "label": b.label,
-                "priority": b.priority
+                "short": b.short,
+                "priority": b.priority,
+                "keys": b.keys
             }))
+
+    // Which table the keyboard and the legend are both looking at. One
+    // expression rather than the same three-way choice written out twice: a
+    // legend advertising one table while the keys ran another is exactly the
+    // drift the shared table exists to prevent.
+    readonly property var activeBindings: root.streamsVisible ? root.mixerBindings
+        : root.eqVisible ? root.eqBindings
+        : root.windowBindings
+
+    // The label the framed floor is measured against: the strongest binding in
+    // the resting legend, in whatever form it would actually be drawn.
+    //
+    // Read off the table rather than restated, so renaming `[q]uit` cannot
+    // leave the floor measuring a string the window no longer shows. Taken
+    // from the window's own table and not from `activeBindings`, because a
+    // revealed panel must not move the floor under a window sitting on it.
+    readonly property string legendFloorLabel: {
+        let strongest = null;
+
+        for (const b of root.windowBindings) {
+            if (b.label === undefined || !b.advertised)
+                continue;
+
+            if (strongest === null || b.priority > strongest.priority)
+                strongest = b;
+        }
+
+        if (strongest === null)
+            return "";
+
+        return strongest.short !== undefined ? strongest.short : strongest.label;
+    }
 
     // Key handling sits on a focused Item rather than on Shortcut: Shortcut
     // never fired here under Hyprland, and this is the form that works.
@@ -655,7 +704,10 @@ Window {
             return false;
         }
 
-        Keys.onPressed: event => {
+        // One route for a binding, whatever raised it. A revealed panel is
+        // asked first, because it holds the arrow keys the window would
+        // otherwise take.
+        function route(event) {
             if (root.streamsVisible && keyLayer.streams !== null && keyLayer.dispatch(root.mixerBindings, event))
                 return;
 
@@ -664,6 +716,24 @@ Window {
 
             keyLayer.dispatch(root.windowBindings, event);
         }
+
+        // A click on a legend label runs the binding the label names, down the
+        // same route a keypress takes rather than calling the action directly.
+        // A pointer must not be able to reach anything a key could not, and a
+        // second copy of the panel-first order is one chance for the two to
+        // disagree about which table owns a key.
+        function activate(keys) {
+            if (keys === undefined || keys.length === 0)
+                return;
+
+            keyLayer.route({
+                "key": keys[0],
+                "modifiers": Qt.NoModifier,
+                "accepted": false
+            });
+        }
+
+        Keys.onPressed: event => keyLayer.route(event)
     }
 
     // ---- transient mode indicator ------------------------------------------

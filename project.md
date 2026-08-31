@@ -178,13 +178,30 @@ Two chrome modes, both permanent and user-switchable:
 The frame is drawn geometrically, not typed, so it cannot be broken by
 `omarchy font set`. Labels sit on the border line, which breaks around them.
 
-The spectrum has exactly two appearances: **bars**, filled pixel columns, and
-**cells**, a character grid of U+2581..U+2588 block elements. Cells follow
-`omarchy font set`, being measured in whatever `monospace` resolves to. Both read
-the same fixed dB window, so switching must never look like the signal changed.
-Density applies to both; a cell grid rounds it to a whole number of cells per
-column, and that coarseness is the honest answer rather than a control showing a
-value it ignores.
+The spectrum has exactly three appearances: **bars**, filled pixel columns;
+**cells**, a character grid of U+2581..U+2588 block elements; and **dots**, a
+painted lattice of discrete circles. Cells follow `omarchy font set`, being
+measured in whatever `monospace` resolves to; dots own their lattice outright and
+take it from the density control instead. All three read the same fixed dB
+window, so switching must never look like the signal changed. Density applies to
+all three; a cell grid rounds it to a whole number of cells per column, and that
+coarseness is the honest answer rather than a control showing a value it ignores.
+
+**A cell and a dot are drawn as discrete elements, with air on every side.**
+Block elements tile seamlessly by design, so a grid drawn at the font's own
+advance and line height reads as a filled silhouette and the reader is shown a
+bar renderer with worse resolution. The divisions are what the style is for.
+
+**The divisions absorb the layout remainder rather than an edge taking it.** A
+whole number of cells or dots divides the width and height with something left
+over, and parking that leftover at an edge puts the style out of agreement with
+the bars — the level is drawn into a shorter box than the one the bars use, and
+the same tone reads at a different height. Stretching the air instead lands the
+grid exactly on the item's edges.
+
+**Nothing unlit is drawn.** An LED matrix shows its dark dots because it has
+them; this has the choice, and a faint dot in every unlit position would put a
+permanent picture across a window whose silence is reported in words.
 
 ### How the layout gives things up
 
@@ -193,6 +210,13 @@ value it ignores.
   state do not. A component that will not fit is dropped whole, never elided to a
   stub: a column reserving the width of a word to render `S…` costs the space and
   delivers none of the meaning.
+- **A second name is not a stub.** A binding may declare a shorter form of its
+  own label — `[e]qualizer` and `[e]q` — and the legend collapses to it before it
+  drops anything, because a binding named briefly is still named. The short form
+  is a name the reader can act on; `[e]qua…` would be a word with its end cut
+  off, and that remains forbidden. The pass is all-or-nothing: a row mixing full
+  and short forms reads as two kinds of thing, and which label got shortened
+  would depend on declaration order rather than on anything visible.
 - **A wider window never shows less.** Whatever is disclosed at one size is
   disclosed at every larger size. A rule that hands width back as the window
   narrows must not reintroduce something already dropped.
@@ -201,6 +225,14 @@ value it ignores.
   fit. Framed pays for a title row, a legend row and border air; bare pays for
   none and stays useful far smaller. A single window-wide threshold would take a
   working bare window away to fix a framed problem.
+- **The framed floor includes room for the legend's strongest binding.** A frame
+  drawing a bottom edge with nothing on it has stopped documenting itself, and a
+  window too small to say how to leave it is a window too small. The floor is
+  measured against a label the shell names in advance, not against whatever the
+  legend currently holds: the items change when a panel is revealed, and a
+  derived floor would rise as the mixer opened and shift under a window already
+  sitting on it — the same trap the title floor avoids by measuring the bypassed
+  form.
 
 Two ways a floor goes wrong:
 
@@ -245,7 +277,17 @@ window they land on the frame's linework, which reads as damage.
 The legend ranks. The mixer and the equalizer are what the window is for; chrome
 mode and spectrum appearance are tweaks and are given up first. An adjustment
 that has become an on-screen control leaves the legend rather than restating
-itself there.
+itself there. `[q]uit` outranks all of them and is the last label standing: how
+to leave is the one thing a window that has run out of room must still say.
+
+**A legend label is a control, not a caption.** Clicking one runs the binding it
+names, through the same table the keyboard dispatches against, so a pointer can
+reach nothing a key could not. The exception is a label naming a direction pair
+— `←/→ volume` — where a click has said nothing about which way; picking one
+would be the control guessing, so those stay captions and show no pointer
+affordance. The word brightens under the pointer and the key hint keeps its
+accent, since the hint is an advertisement for the keyboard and must not change
+meaning with the mouse.
 
 ### Keyboard
 
@@ -258,7 +300,7 @@ means there is nothing to act on, and the key answers by reporting why, in the
 same place a mode change is reported, without touching the graph.
 
 The equalizer is the standing example: the core creates its filter node whether
-or not the LV2 provider is installed, so `[e]q` is advertised on
+or not the LV2 provider is installed, so `[e]qualizer` is advertised on
 `packageInstalled` rather than on the instance existing. Pressed without it, the
 key says the plugin is missing instead of opening an editor for something that
 moves no samples.
@@ -413,7 +455,40 @@ root, and Omarchy's OSD reads `pactl`. A stream at 0.2 on the node is 58%
 everywhere a user can already see it, so the panel displays, steps and fills its
 meter in the cube root and cubes on the way back to the node. Presentation only;
 nothing below the panel changes, and a 5% step then means what it means
-everywhere else.
+everywhere else. A pointer writes the same scale directly, unrounded: the 5% step
+exists so a key moves by the same amount as the rest of the desktop, and a
+pointer has already said exactly where it wants to be.
+
+**Every mixer action is reachable by pointer as well as by key**, and both go
+through the same function — the key supplies the selected row, the pointer
+supplies the row it landed on. Clicking anywhere in a row selects it, so a click
+and then a key act on one stream rather than two.
+
+**The volume bar is a control, and it is drawn long enough to be one.** It is
+read by comparing lengths across rows rather than by reading a number, so it
+takes a share of the row's spare width instead of a fixed few ems — at 4 em in a
+600 px panel it was 12% of the room the row had to spend. Pressing anywhere along
+the track sets the volume there; there is no handle to catch, because a bar a few
+pixels tall with a handle is a control a pointer cannot land on. The hit area is
+the row's height while the drawn bar stays a reading.
+
+**A live drag draws the pointer's value, not the node's.** The write goes out on
+every move, but what comes back is the graph's answer a round trip later, and
+drawing that makes the bar trail the pointer. For the same reason the bar's
+easing is disabled while a drag is live: a keyboard step lands the bar somewhere
+new and gliding carries the eye there, but easing towards a pointer reads as lag.
+The list is a `Flickable`, so the drag must claim the press outright or a scroll
+takes it halfway through.
+
+**A state column holds its width whether or not its state is on.** Collapsing to
+nothing cost two things: the row reflowed the moment a stream muted, and a state
+that is off had nowhere for a pointer to press. The width is reserved in the
+layout arithmetic either way, so holding it takes nothing from the columns beside
+it. Off and un-hovered the column is still empty — the flags report states, and a
+permanent "not muted" on every row is noise — but under the pointer it shows the
+word a click would turn on, dimmed. That is a hover-only affordance on purpose:
+it tells a pointer what a press would do, and whoever reads it already has one.
+Key hints are the opposite case and stay coloured at rest.
 
 **Never move a DSP filter's own stream as if it were an application**, which in
 practice means honouring **`node.dont-move`**. Omarchy's speaker tuning sets it on
@@ -530,6 +605,29 @@ thing to a listener and only one of them is free.
 **Instantiated is not the same as installed.** With the LV2 provider missing the
 core still creates the filter node and passes audio through, so the editor and
 its key are backed by `packageInstalled` rather than by the instance existing.
+
+**The band's control is its slot, not its bar.** A bar is drawn at just over
+half the slot and vanishes entirely at 0 dB, so hit areas cut to the bars would
+be a row of targets with gaps between them and nothing at all to press on a flat
+curve. One surface spans the track and divides it the way the bands divide it.
+
+**A drag holds the band it grabbed.** Following the pointer's x would let it
+paint across neighbours — a fine gesture to offer deliberately, and a poor one to
+hand someone who only drifted sideways while pulling a band up.
+
+**Zero is a detent.** It is the response the whole curve is measured against, and
+landing on it by hand within a fraction of a dB is luck. This is a detent at a
+meaningful value, not the quantising the volume bar refuses: rounding a whole
+range to steps overrides what the pointer said, while a detent gives it the one
+value it was plainly reaching for.
+
+**A drag control shows its axis.** The equalizer's bands take a vertical cursor
+and the mixer's volume bar a horizontal one, because the gesture is the thing
+that is not obvious from looking.
+
+**A pointer's coordinate runs to `height - 1`, not `height`.** Mapping the gain
+over the full height put the lower rail one pixel past anywhere the pointer could
+land: full boost was reachable and full cut was not.
 
 **The editor caches each band's frequency, and must be told when they move.** A
 profile is a curve resolved against the frequencies the bands actually have, and
