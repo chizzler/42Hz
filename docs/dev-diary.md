@@ -13,6 +13,8 @@ Detailed evidence is in `docs/spike-*.md`.
 
 ## 2026-08-31 (night, fourth pass) — A third spectrum, and a window a pointer can drive
 
+**Commit:** `0c9d870`
+
 Three things, and the last one is the theme: every control this window draws is
 now reachable with a mouse, not just documented for the keyboard.
 
