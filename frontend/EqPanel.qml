@@ -40,6 +40,9 @@ Item {
     // not have.
     property bool installed: true
 
+    // Bumped by the window when the band layout has been rewritten. See Main.
+    property int revision: 0
+
     readonly property int bandCount: panel.ready ? panel.pluginDB.numBands : 0
 
     property int selected: 0
@@ -188,6 +191,7 @@ Item {
 
     onReadyChanged: panel.reload()
     onBandCountChanged: panel.reload()
+    onRevisionChanged: panel.reload()
 
     FontMetrics {
         id: metrics

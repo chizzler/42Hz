@@ -5,8 +5,13 @@
 # The theme adapter resolves its state path from QDir::homePath(), so a fake
 # HOME containing nothing but ~/.local/state/omarchy/current/theme is enough to
 # put 42Hz on any theme in /usr/share/omarchy/themes. The real desktop never
-# changes, no theme is switched, and 42Hz's own settings land in the fake home
-# too -- which is the isolation spike-02 had to build by hand.
+# changes and no theme is switched.
+#
+# HOME is not enough on its own, though. 42Hz's settings go through
+# QStandardPaths, which honours XDG_CONFIG_HOME when it is set -- and Omarchy
+# sets it -- so a fake HOME redirects the theme and leaves the run reading and
+# writing the user's real ~/.config/42hz. All four XDG directories are fenced
+# here for the same reason spike-02 fenced them.
 #
 #   ./spike/nested-session.sh start
 #   ./spike/theme-preview.sh OUTDIR [theme ...]
@@ -48,7 +53,12 @@ for theme in "${SET[@]}"; do
     for p in $(pgrep -x 42hz 2>/dev/null || true); do kill "$p" 2>/dev/null || true; done
     sleep 1
 
-    HOME="$home" setsid nohup "$NESTED" run "$HERE/../build-debug/42hz" --debug \
+    env HOME="$home" \
+        XDG_CONFIG_HOME="$home/.config" \
+        XDG_STATE_HOME="$home/.local/state" \
+        XDG_DATA_HOME="$home/.local/share" \
+        XDG_CACHE_HOME="$home/.cache" \
+        setsid nohup "$NESTED" run "$HERE/../build-debug/42hz" --debug \
         > "$OUT/$theme.log" 2>&1 < /dev/null &
 
     # Wait for the window rather than guessing: a themed capture of a window

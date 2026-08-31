@@ -23,6 +23,7 @@ Item {
 
     property var eqPluginDB: null
     property bool eqInstalled: true
+    property int eqRevision: 0
     property var eqLeftDB: null
     property var eqRightDB: null
 
@@ -257,6 +258,7 @@ Item {
 
         pluginDB: surface.eqPluginDB
         installed: surface.eqInstalled
+        revision: surface.eqRevision
         leftDB: surface.eqLeftDB
         rightDB: surface.eqRightDB
     }

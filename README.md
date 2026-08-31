@@ -10,8 +10,8 @@ that tracks the active Omarchy theme.
 Design and constraints are in [`project.md`](project.md); the development record
 is in [`docs/dev-diary.md`](docs/dev-diary.md).
 
-**Status:** milestones 1, 3 and 4 complete; milestone 2 all but a whole-theme
-switch under load.
+**Status:** milestones 1 to 4 complete. Packaging and the release candidate
+remain.
 
 ## What it does
 

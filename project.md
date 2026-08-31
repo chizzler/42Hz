@@ -7,8 +7,9 @@ spectrum-first Qt/QML one.
 
 - **Public name:** 42Hz **Executable:** `42hz` **Application ID:** `io.github.chizzler.42Hz`
 - **Upstream base:** EasyEffects `v8.2.8`, GPL-3.0-or-later
-- **Status:** milestones 1, 3 and 4 complete; milestone 2 all but a whole-theme
-  switch under load. Chronology is in [`docs/dev-diary.md`](docs/dev-diary.md).
+- **Status:** milestones 1 to 4 complete. Milestone 5 (Omarchy integration
+  hardening and the Arch package) and milestone 6 (release candidate) remain.
+  Chronology is in [`docs/dev-diary.md`](docs/dev-diary.md).
 
 This document records what is true about the design: the decisions, and the
 constraints that were expensive to discover. It carries no dates and no
@@ -299,11 +300,32 @@ Neither reads nor writes user configuration. Theme fidelity uses
 `spike/theme-preview.sh`, which renders 42Hz under any theme in
 `/usr/share/omarchy/themes` by giving it a fake `HOME` containing only the two
 files the adapter reads; no theme is switched and the running desktop never
-changes.
+changes. `spike/theme-switch.sh` goes further and switches the theme *under a
+running instance*, reproducing `omarchy-theme-set`'s two filesystem operations —
+`rm -rf current/theme` then `mv next-theme current/theme` — inside that fake
+home. A watcher cannot tell who performed those, so this is the same event as a
+real switch, and it is the only way to test one without changing the user's
+desktop.
+
+**A fake `HOME` is not an isolated run.** The theme adapter resolves its state
+path from `QDir::homePath()`, so `HOME` alone redirects *theming*. 42Hz's
+settings do not go that way: they go through `QStandardPaths`, which honours
+`XDG_CONFIG_HOME` when it is set — and Omarchy sets it. A harness that sets only
+`HOME` therefore reads and writes the user's real `~/.config/42hz` while
+appearing fenced, which is how a preset applied in one run turned up in the
+next. All four XDG directories are redirected, as spike 02 did by hand.
 
 **Run the sweeps at milestone boundaries and when a layout rule changes**, not
 reflexively. A sweep costs minutes and produces twenty-one images that then have
 to be read.
+
+Anything verifying behaviour *under load* has to hold its own signal: a browser
+throttles its audio when its window is occluded, and a fullscreen nested session
+guarantees that, so a sweep driven by one loses its spectrum partway and
+photographs the silence report instead. A long noise file through `mpv` does not
+stall. The sweep checks that `42hz_sink` is `RUNNING` rather than merely linked,
+because a stream that has been captured but is paused leaves the output pipeline
+unlinked and every capture is then of `processing stopped`.
 
 Geometry is set on the *window*, never on the nested output. The output is a
 surface in the parent session, so the parent's layout decides its size and a
@@ -507,6 +529,15 @@ thing to a listener and only one of them is free.
 **Instantiated is not the same as installed.** With the LV2 provider missing the
 core still creates the filter node and passes audio through, so the editor and
 its key are backed by `packageInstalled` rather than by the instance existing.
+
+**The editor caches each band's frequency, and must be told when they move.** A
+profile is a curve resolved against the frequencies the bands actually have, and
+those are written by `calculateFrequencies()`. Setting `numBands` is what makes
+the editor notice a change, so on a fresh settings file it reads the frequencies
+of the *previous* band count one step before the new ones are written, and every
+profile then lands on the wrong curve — band 0 reading 22 Hz, the 32-band
+centre, rather than 30. None of the frequency properties notifies, so the window
+signals the rewrite explicitly rather than the editor trying to observe it.
 
 **Band values are flat properties** — `band0Gain` … `band31Gain`, per channel —
 so a delegate over an index must reach them as `leftDB["band" + i + "Gain"]`.

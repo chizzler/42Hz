@@ -164,6 +164,20 @@ Window {
     // resolution of the curve rather than a count of controls to manage.
     readonly property int eqBandCount: 10
 
+    // Bumped whenever the band layout underneath the editor changes.
+    //
+    // The panel caches each band's frequency, because a profile is a curve that
+    // has to be resolved against the frequencies the bands actually have. Those
+    // are written by calculateFrequencies(), and setting numBands is what makes
+    // the panel notice a change -- so on a fresh settings file the panel reads
+    // the frequencies of the *previous* band count, one step before the new
+    // ones are written, and every profile then lands on the wrong curve. It
+    // showed up as band 0 reading 22 Hz, which is the 32-band centre.
+    //
+    // Nothing about the frequency properties notifies, so the window says so
+    // explicitly rather than the panel trying to observe it.
+    property int eqRevision: 0
+
     property var eqBackend: null
     property var eqPluginDB: null
     property var eqLeftDB: null
@@ -211,6 +225,7 @@ Window {
         // otherwise leave frequencies that do not match the curve on screen.
         root.eqPluginDB.numBands = root.eqBandCount;
         root.eqBackend.calculateFrequencies();
+        root.eqRevision++;
 
         // Type, mode, slope and width already default to what a graphic EQ
         // wants: band type 1 is Bell, mode 0 is RLC (BT), slope 0 is x1, and
@@ -298,6 +313,7 @@ Window {
             item.eqVisible = Qt.binding(() => root.eqVisible);
             item.eqPluginDB = Qt.binding(() => root.eqPluginDB);
             item.eqInstalled = Qt.binding(() => root.eqInstalled);
+            item.eqRevision = Qt.binding(() => root.eqRevision);
             item.eqLeftDB = Qt.binding(() => root.eqLeftDB);
             item.eqRightDB = Qt.binding(() => root.eqRightDB);
             item.audioServiceReady = Qt.binding(() => root.audioServiceReady);

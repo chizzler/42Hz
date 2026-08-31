@@ -20,6 +20,7 @@ Item {
 
     property var eqPluginDB: null
     property bool eqInstalled: true
+    property int eqRevision: 0
     property var eqLeftDB: null
     property var eqRightDB: null
 
@@ -190,6 +191,7 @@ Item {
             eqVisible: shell.eqVisible
             eqPluginDB: shell.eqPluginDB
             eqInstalled: shell.eqInstalled
+            eqRevision: shell.eqRevision
             eqLeftDB: shell.eqLeftDB
             eqRightDB: shell.eqRightDB
             toastText: shell.toastText

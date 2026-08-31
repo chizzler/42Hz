@@ -311,6 +311,29 @@ cmd_shot() {
         '.[] | select(.class == $c) | "\(.at[0]),\(.at[1]) \(.size[0])x\(.size[1])"')"
     [[ -n "$rect" ]] || die "no $APP_ID window to capture"
 
+    # A window bigger than the output captures nothing, and grim says only
+    # "supplied geometry did not intersect with any outputs" -- which reads like
+    # a bad rectangle rather than what it is: the parent stopped giving the
+    # nested session a full-size surface, so the output shrank under a window
+    # that did not. `expand` is the fix and it is worth naming, because the
+    # message otherwise sends you looking at the capture code.
+    # The whole rectangle has to be on the output, position included. Checking
+    # only the size passes a window that fits but sits past the edge, and grim
+    # then says "supplied geometry did not intersect with any outputs" -- which
+    # reads like a bad rectangle rather than what it is: the parent stopped
+    # giving this session a full-size surface, so the output shrank under a
+    # window that did not move with it.
+    local ow oh
+    read -r ow oh < <(hctl monitors -j | jq -r '.[0] | "\(.width) \(.height)"')
+
+    local pos="${rect%% *}" size="${rect##* }"
+    local rx="${pos%,*}" ry="${pos#*,}"
+    local rw="${size%x*}" rh="${size#*x}"
+
+    if (( rx < 0 || ry < 0 || rx + rw > ow || ry + rh > oh )); then
+        die "the $APP_ID window is ${size} at ${pos} and the nested output is only ${ow}x${oh}, so part of it is off-screen and there is nothing to capture. The parent stopped giving this session a full-size surface -- run 'nested-session.sh expand'."
+    fi
+
     if ! timeout 10 env WAYLAND_DISPLAY="$(socket_name)" grim -g "$rect" "$out"; then
         if ! parent_displays_on; then
             die "grim did not return: the parent session's displays are off, so the nested compositor is getting no frame callbacks. Run 'nested-session.sh expand', which wakes them."

@@ -11,6 +11,65 @@ Detailed evidence is in `docs/spike-*.md`.
 
 ---
 
+## 2026-08-31 (night, second pass) — The theme switch under load, and what testing it found
+
+Milestone 2's last item. Three sessions had recorded it as unverifiable because
+theme state is machine-global, so switching meant switching the user's desktop.
+That was wrong. `omarchy-theme-set` swaps themes with two filesystem
+operations — `rm -rf current/theme`, `mv next-theme current/theme` — and a
+watcher cannot tell who performed them, so performing them inside a fake `HOME`
+is the same event. `spike/theme-switch.sh` does that under a running instance.
+
+**The result: it works.** Six switches across dark to light and back, with a
+stream playing throughout and `42hz_sink` reading `RUNNING` at every capture.
+matte-black keeps its orange in the spectrum, vantablack stays monochrome down to
+its key hints, gruvbox stays warm rather than being "improved" into teal. A burst
+of seven swaps with no settling between them collapses to one reload on the last
+theme, and a switch *after* the burst still lands — so the coalescer holds and
+the watcher survives seven consecutive destructive renames. The EQ editor and the
+mixer follow a switch as well as the chrome does.
+
+Getting there found four things, three of them mine.
+
+**A fake `HOME` is not an isolated run.** The adapter resolves its state path
+from `QDir::homePath()`, so `HOME` redirects theming. Settings go through
+`QStandardPaths`, which honours `XDG_CONFIG_HOME` — and Omarchy sets it. Both
+theme harnesses set only `HOME`, so every run since they were written has been
+reading and writing the user's real `~/.config/42hz` while carrying a comment
+claiming otherwise. It surfaced as an audio profile applied in one run turning up
+named in the next, on what was supposed to be a fresh config. spike 02 fenced all
+four XDG directories by hand; the theme harness was written later and did not.
+
+**And the leak was hiding a real defect.** With the fence in place and a genuinely
+fresh settings file, the editor read band 0 as 22 Hz — the 32-band centre — where
+ten bands put it at 30. The panel caches each band's frequency, `numBands` is what
+makes it notice a change, and `calculateFrequencies()` writes the new frequencies
+one step *after* that. So on a first run every profile was resolved against the
+previous band layout. Nothing about those properties notifies, so the window now
+signals the rewrite explicitly.
+
+**A sweep needs a source that cannot stall.** A browser throttles its audio when
+its window is occluded, and a fullscreen nested session guarantees that; the
+sweep lost its spectrum halfway and photographed the silence report. A long noise
+file through `mpv` does not. The harness also waits for `42hz_sink` to be
+`RUNNING` rather than merely linked, because a captured-but-paused stream leaves
+the output pipeline unlinked and every capture is then of `processing stopped`.
+
+**`shot` blamed the wrong thing again.** A window bigger than its output, or
+merely positioned past its edge, makes grim say "supplied geometry did not
+intersect with any outputs", which reads like a bad rectangle. It is the parent
+dropping the session out of fullscreen on a long run. `shot` names that now, and
+the sweep re-asserts `expand` per capture rather than once at the start. First
+attempt at the guard checked size and not position, and passed a window that fits
+but hangs off the edge.
+
+### Still open
+
+Nothing in milestones 1 to 4. Next is milestone 5: the Arch package, the command
+surface, and the diagnostics.
+
+---
+
 ## 2026-08-31 (night) — The audio profiles, built
 
 **Commit:** `d809ca2`
