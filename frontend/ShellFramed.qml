@@ -172,6 +172,10 @@ Item {
 
             anchors.fill: parent
 
+            // The border has already stood this whole surface back from the
+            // window, so the mixer needs no edge inset of its own.
+            contentInset: 0
+
             points: shell.points
             barWidth: shell.barWidth
             spectrumStyle: shell.spectrumStyle

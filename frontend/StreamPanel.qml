@@ -16,6 +16,15 @@ Item {
 
     readonly property int count: list.count
 
+    // How many streams the panel is not currently showing.
+    //
+    // The list scrolls and the selection carries the view with it, so nothing
+    // is unreachable -- but at a glance a mixer three rows tall in a two-row
+    // space reports two streams and gives no sign of the third, which is the
+    // same failure the column rules exist to prevent, one axis over. Surface
+    // draws this on the divider.
+    readonly property int hiddenCount: Math.max(0, list.count - Math.floor(panel.height / panel.rowHeight))
+
     // Everything below is the same for every row, so it is derived once here
     // rather than once per delegate -- including the two theme colours, which
     // otherwise cross into C++ three times per row on every selection move.
@@ -120,6 +129,28 @@ Item {
     readonly property color idleName: Theme.foregroundDim
     readonly property color idleMeter: Theme.withAlpha(Theme.accent, 0.65)
 
+    // The number on a row is not the node's volume.
+    //
+    // A PipeWire node carries linear amplitude, and everything else on this
+    // desktop reports the cube root of it: `pactl`, `wpctl`, and therefore
+    // Omarchy's own volume OSD, which reads `pactl`. A stream someone set to
+    // 58% in any of those is 0.2 on the node, and this panel used to print
+    // "20%" beside it. Two numbers for one stream, and the mixer's is the one
+    // nothing else agrees with.
+    //
+    // So the row reads and writes in that scale: display it, step in it, and
+    // cube on the way back to the node. The 5% step then means what it means
+    // everywhere else, instead of being an even slice of amplitude that moves
+    // a quiet stream inaudibly and a loud one across half its range.
+    function shownVolume(linear) {
+        return Math.cbrt(Math.max(0, linear));
+    }
+
+    function linearVolume(shown) {
+        const v = Math.max(0, Math.min(1, shown));
+        return v * v * v;
+    }
+
     function moveSelection(delta) {
         if (list.count === 0)
             return;
@@ -141,7 +172,8 @@ Item {
         if (row === null || row.nVolumeChannels === 0)
             return;
 
-        PwManager.setNodeVolume(row.serial, row.nVolumeChannels, Math.max(0, Math.min(1, row.volume + delta)));
+        PwManager.setNodeVolume(row.serial, row.nVolumeChannels,
+                                panel.linearVolume(panel.shownVolume(row.volume) + delta));
     }
 
     // Processing inclusion is one write, and choosing the blocklist key here
@@ -233,6 +265,14 @@ Item {
             // Dropped rather than elided when narrow. Elided, this column
             // spent the width of a word to render "S\u2026", which reserves space
             // to say nothing.
+            //
+            // Blank when it only repeats the name. A game names its stream
+            // after its binary and gives the media the same string, so N++
+            // arrived as `N++.bin.x86_64  N++.bin.x86_64`. The column is not
+            // dropped for that one row -- the widths are a decision for the
+            // whole panel, and a row that laid itself out differently would
+            // put its readings somewhere else -- but it has nothing to say
+            // and says nothing.
             Text {
                 anchors.left: name.right
                 anchors.leftMargin: panel.gap
@@ -241,7 +281,7 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
 
                 elide: Text.ElideRight
-                text: row.mediaName
+                text: row.mediaName === row.appName ? "" : row.mediaName
                 color: Theme.muted
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.fontBaseSize
@@ -267,7 +307,7 @@ Item {
                 }
 
                 Rectangle {
-                    width: parent.width * Math.max(0, Math.min(1, row.volume))
+                    width: parent.width * Math.max(0, Math.min(1, panel.shownVolume(row.volume)))
                     height: parent.height
                     color: row.mute ? Theme.muted : (row.selected ? Theme.accent : panel.idleMeter)
                 }
@@ -282,7 +322,7 @@ Item {
 
                 horizontalAlignment: Text.AlignRight
                 width: panel.readingWidth
-                text: Math.round(row.volume * 100) + "%"
+                text: Math.round(panel.shownVolume(row.volume) * 100) + "%"
                 color: row.mute ? Theme.muted : Theme.foreground
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.fontBaseSize

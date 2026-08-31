@@ -35,6 +35,21 @@ nest() { "$NESTED" "$@"; }
 # that hard-codes a size it cannot get produces captions that lie.
 read -r OUTW OUTH < <(nest ctl monitors -j | jq -r '.[0] | "\(.width) \(.height)"')
 
+# Clamping is what keeps a caption honest; it is not a way to run the sweep on
+# an output that cannot hold it. On a busy parent workspace the nested output
+# is a tile a few hundred pixels wide, every geometry below clamps to that one
+# size, and the sweep completes with twenty-one correctly labelled captures of
+# the same window. Refuse instead: the widest and tallest cases must be
+# distinguishable or there is nothing to look at.
+NEEDW=1200
+NEEDH=600
+if (( OUTW < NEEDW || OUTH < NEEDH )); then
+    echo "nested output is ${OUTW}x${OUTH}; the sweep needs at least ${NEEDW}x${NEEDH}." >&2
+    echo "Every geometry would clamp to the output and each capture would be the same window." >&2
+    echo "Run 'spike/nested-session.sh expand' to fullscreen it on the parent, then retry." >&2
+    exit 1
+fi
+
 clamp() {
     local w="${1%x*}" h="${1#*x}"
     echo "$(( w < OUTW ? w : OUTW ))x$(( h < OUTH ? h : OUTH ))"

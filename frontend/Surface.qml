@@ -68,6 +68,17 @@ Item {
     // so three sites restating it is three chances to drift half a gutter.
     readonly property real gutter: Math.round(Theme.fontBaseSize * 0.5)
 
+    // How far the mixer stands back from the surface's own left and right
+    // edges.
+    //
+    // The spectrum goes edge to edge in bare chrome deliberately -- that is
+    // what bare chrome is -- but the mixer has content hard against both
+    // margins, and in bare chrome the surface's edge is the window's. The
+    // selection marker lost its left half to it and every reading lost the
+    // `%` off its right. Framed chrome sets this to zero: there the border
+    // has already stood the whole surface back from the window.
+    property real contentInset: surface.gutter
+
     // One renderer at a time rather than two with one hidden: both write
     // DbSpectrum.nPoints, and two of them would fight over how many points the
     // core resamples to.
@@ -112,11 +123,31 @@ Item {
         streamCount: surface.streamCount
     }
 
+    // The count of streams the mixer has no room to draw, set into the divider
+    // the way the frame sets its title into the border. On the rule rather
+    // than in a row, because a row spent saying a row is missing is a poor
+    // trade and would itself be the row that gets clipped next.
+    Text {
+        id: hidden
+
+        anchors.right: parent.right
+        anchors.rightMargin: surface.contentInset
+        anchors.verticalCenter: divider.verticalCenter
+
+        text: "+" + panel.hiddenCount
+        color: Theme.muted
+        font.family: Theme.fontFamily
+        font.pixelSize: Theme.fontBaseSize
+        visible: surface.streamsVisible && panel.hiddenCount > 0
+    }
+
     Rectangle {
         id: divider
 
         anchors.left: parent.left
-        anchors.right: parent.right
+        anchors.leftMargin: surface.contentInset
+        anchors.right: hidden.visible ? hidden.left : parent.right
+        anchors.rightMargin: hidden.visible ? surface.gutter : surface.contentInset
         anchors.bottom: panel.top
         anchors.bottomMargin: surface.gutter
 
@@ -182,7 +213,9 @@ Item {
         id: panel
 
         anchors.left: parent.left
+        anchors.leftMargin: surface.contentInset
         anchors.right: parent.right
+        anchors.rightMargin: surface.contentInset
         anchors.bottom: parent.bottom
 
         height: surface.streamsVisible ? Math.min(surface.height * 0.5 - divider.height - surface.gutter, Math.max(1, panel.count) * panel.rowHeight) : 0

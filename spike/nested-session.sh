@@ -24,6 +24,7 @@
 #   ./spike/nested-session.sh key KEY...    send keys, refusing unless 42Hz has focus
 #   ./spike/nested-session.sh shot FILE     screenshot the 42Hz window
 #   ./spike/nested-session.sh raise         bring the nested session to the front
+#   ./spike/nested-session.sh expand        fullscreen it on the parent, for a full-size output
 #   ./spike/nested-session.sh stop          kill it
 #
 # A headless session would be tidier -- no window on the user's screen at all --
@@ -311,6 +312,9 @@ cmd_shot() {
     [[ -n "$rect" ]] || die "no $APP_ID window to capture"
 
     if ! timeout 10 env WAYLAND_DISPLAY="$(socket_name)" grim -g "$rect" "$out"; then
+        if ! parent_displays_on; then
+            die "grim did not return: the parent session's displays are off, so the nested compositor is getting no frame callbacks. Run 'nested-session.sh expand', which wakes them."
+        fi
         die "grim did not return: the nested session is not being drawn. It must be visible on the parent's ACTIVE workspace -- check the workspace first, then run 'nested-session.sh raise'."
     fi
 
@@ -343,6 +347,71 @@ cmd_raise() {
         if w then hl.dispatch(hl.dsp.focus({ window = w })) end" >/dev/null
 }
 
+# Give the nested session an output big enough to sweep in.
+#
+# The nested output is a surface in the parent, so the parent's layout decides
+# how big it is -- and on a busy workspace that is a tile a few hundred pixels
+# wide. Every geometry a sweep asks for is then clamped to it, so twenty-one
+# captures come back at one size, correctly labelled and worth nothing. The
+# only lever is the parent, so fullscreen the nested window there.
+#
+# `window.fullscreen` toggles, so this reads the state first rather than
+# asking twice and ending up back where it started. It waits for the nested
+# output to actually grow: the parent grants the size, the nested compositor
+# learns about it on its next configure, and a caller that measures too early
+# measures the tile.
+# True while the parent session's outputs are actually lit.
+#
+# `dpmsStatus` is the field, and it reads as a state rather than a fault: false
+# means the displays are off. Named here because two callers need it and
+# because the polarity is easy to get backwards.
+parent_displays_on() {
+    hyprctl monitors -j 2>/dev/null | jq -e 'any(.[]; .dpmsStatus)' >/dev/null
+}
+
+cmd_expand() {
+    local pid
+    pid="$(cat "$PIDFILE" 2>/dev/null)" || die "not running"
+
+    # An idle-blanked parent stops the nested compositor dead.
+    #
+    # A nested compositor renders only while its own window gets frame
+    # callbacks, and a display that hypridle has switched off delivers none --
+    # so screencopy blocks and every capture hangs until it times out. It looks
+    # exactly like the covered-window case and is not: nothing is covering
+    # anything, the desk is simply dark. A sweep long enough to be worth
+    # running is long enough to reach the idle timeout, so waking the parent is
+    # part of making room to capture in.
+    if ! parent_displays_on; then
+        hyprctl eval 'hl.dispatch(hl.dsp.dpms({ state = "on" }))' >/dev/null
+    fi
+
+    hyprctl eval "local w
+        for _, x in ipairs(hl.get_windows()) do
+            if x.pid == $pid then w = x end
+        end
+        if not w then error('no nested window in the parent session') end
+        hl.dispatch(hl.dsp.focus({ window = w }))
+        if w.fullscreen == 0 then
+            hl.dispatch(hl.dsp.window.fullscreen({ window = w }))
+        end" >/dev/null
+
+    local i geom=""
+    for ((i = 0; i < 50; i++)); do
+        geom="$(hctl monitors -j | jq -r '.[0] | "\(.width)x\(.height)"')"
+        [[ "${geom%x*}" -gt 1000 ]] && break
+        sleep 0.1
+    done
+
+    [[ -n "$geom" ]] || die "could not read the nested output size after expanding"
+
+    # The monitor rule is restated at the size the parent actually granted. The
+    # rule written at `start` names the size that was asked for, and a stale one
+    # holds the single tiled window at the old geometry inside a bigger output.
+    cmd_size "$geom" >/dev/null
+    echo "$geom"
+}
+
 cmd_status() {
     if running; then
         echo "running: pid $(cat "$PIDFILE"), WAYLAND_DISPLAY=$(socket_name), instance $(instance_signature)"
@@ -366,5 +435,6 @@ case "${1:-}" in
     focus)  shift; cmd_focus ;;
     shot)   shift; cmd_shot "$@" ;;
     raise)  shift; cmd_raise ;;
+    expand) shift; cmd_expand ;;
     *)      sed -n '2,30p' "$0" | sed 's/^# \?//' ; exit 1 ;;
 esac

@@ -22,6 +22,150 @@ happens — this remains the account of record. Detailed evidence lives in
 
 ---
 
+## 2026-08-31 (afternoon) — The mixer was showing a number nothing else agreed with
+
+Milestone 3's remaining verification: browser streams, game streams, and the
+mixer's on-screen display, which had not been re-swept since the legend and the
+top edge changed. Four defects, three of them in the mixer and one in the
+harness that was supposed to find them.
+
+### The sweep completed, and proved nothing
+
+First run of `geometry-sweep.sh` returned twenty-one captures, every one of them
+labelled `387x339`.
+
+The nested output is a surface in the parent session, so the parent's layout
+decides how big it is — and on a workspace with nine windows on it that is a
+tile a few hundred pixels wide. Every geometry the sweep asks for is clamped to
+the output, which is right and is what keeps a caption honest. It is not a way
+to *run* the sweep: at that size 1200x120, 900x400 and 240x600 are all the same
+picture, and the run reports success.
+
+Two changes. `nested-session.sh expand` fullscreens the nested window on the
+parent and restates the monitor rule at the size the parent actually granted —
+the rule written at `start` names the size that was asked for, and a stale one
+holds the single tiled window at the old geometry inside a bigger output. And
+the sweep now refuses below 1200x600 and names `expand` in the refusal, rather
+than clamping its way to a meaningless pass.
+
+### And then the desk went dark
+
+Mid-run, every capture started timing out with the harness's covered-window
+message. Nothing was covering anything: hypridle had blanked the parent's
+displays, and a display that is off delivers no frame callbacks, so the nested
+compositor stops rendering and screencopy blocks. It is the fifth member of the
+list under *Verifying responsive behaviour* — the static-output case, arrived at
+from outside instead of inside.
+
+A sweep long enough to be worth running is long enough to reach the idle
+timeout, so `expand` now wakes the parent, and `shot` reads `dpmsStatus` before
+blaming the workspace. Two failures that look identical now say which one
+happened.
+
+### The volume the mixer showed was not the volume anything else showed
+
+Chromium playing into `42hz_sink`, node volume 0.2 linear. The mixer read
+**20%**. `pactl` read **58%**. `wpctl` read **0.58**.
+
+A PipeWire node carries linear amplitude; `pactl` and `wpctl` both report its
+cube root, and Omarchy's own OSD reads `pactl` — `omarchy-audio-output-volume`
+says so in a comment. So every tool on this desktop agrees on one number for a
+stream and 42Hz alone printed another, and a control surface whose reading
+disagrees with the system's by 38 points is wrong regardless of which number is
+more defensible.
+
+The `←`/`→` step was already 0.05, which is Omarchy's step — the intent was
+there and the domain was not. Stepping an even slice of *amplitude* moves a
+quiet stream inaudibly and a loud one across half its range.
+
+The panel now reads, steps and displays in that scale and cubes on the way back
+to the node. Two presses of `→` from 58% land on 68%, `wpctl` says 0.68, `pactl`
+says 68%. The meter fills to the same figure the reading prints, or the bar and
+the number would be the two disagreeing readings again, one row apart.
+
+### Bare chrome had no edge for the mixer to stand back from
+
+The spectrum goes edge to edge in bare chrome deliberately. The mixer inherited
+that: the selection marker lost its left half to the window edge and every
+reading lost the `%` off its right. Framed chrome never showed it, because the
+border had already stood the whole surface back.
+
+`Surface.contentInset` now defaults to the gutter and ShellFramed sets it to
+zero, so the mode that has a border says so and the mode that has none gets the
+inset. The divider follows it, or the rule and the rows it separates disagree by
+half a gutter.
+
+### A mixer three rows tall in a two-row space reported two streams
+
+At 320x180 with three streams live, the panel drew two and gave no sign of the
+third. The list scrolls and the selection carries the view, so nothing was
+unreachable — but the same principle that keeps `muted` and `bypassed` in
+separate columns says a stream that stops being reported is a failure, and that
+principle does not stop applying when the axis changes.
+
+`+N` now sits at the right end of the divider, set into the rule the way the
+frame sets its title into the border. On the rule rather than in a row: a row
+spent saying a row is missing is a poor trade, and it would be the row that gets
+clipped next.
+
+### What the streams actually looked like
+
+**Browser.** Chromium: `application.name = Chromium`, `media.name = Playback`,
+`node.latency = 1024/48000`. Captured into `42hz_sink` on both channels, chained
+through `hz_soe_spectrum` and `hz_soe_output_level` to the device. Mute, volume
+and processing inclusion all reached it; `p` moved it off `42hz_sink` straight to
+the headset and back, twice, without disturbing its volume or mute.
+
+**Game.** N++ (appid 230270), launched through a Steam started inside the nested
+session so the desktop was left alone. `application.name = N++.bin.x86_64`,
+`media.role = Game`, `node.latency = 1024/48000`. It opens **two** nodes and one
+of them never leaves `state=null`; 42Hz lists the running one and not the
+phantom. All three controls reached it, verified at the graph rather than by
+eye — `wpctl get-volume 70` reading `1.00 [MUTED]` after `m`.
+
+It also named itself twice: `application.name` and `media.name` are both the
+binary, so the row read `N++.bin.x86_64  N++.bin.x86_64`. The media-name column
+is blank when it only repeats the name. The column is not dropped for that one
+row — the widths are a decision for the whole panel, and a row that laid itself
+out differently would put its readings somewhere else.
+
+**Music** was mpv, and a fourth arrived unplanned: something already running on
+this desk plays through the ALSA compatibility layer as `PipeWire ALSA
+[nolo_client]`, `node.latency = 2048/44100`. Worth having. It is the case where
+the name the mixer can offer is the one the compatibility layer invented, and
+there is nothing better to show.
+
+**Voice chat** is not separately verified. Its playback stream is the Chromium
+case — the clients here are Electron — and its capture stream is not in this
+mixer, which lists playback streams by design.
+
+### Restarting 42Hz leaves streams where the applications leave them
+
+Killing 42Hz destroys `42hz_sink`, and on restart the session manager captured
+every surviving stream into the new one without help. What does not come back is
+whatever the application did in between: mpv went `idle` and stayed there,
+Chromium destroyed its output node and never made another. That is each
+application's reaction to losing a sink, not 42Hz's doing, and any virtual sink
+would produce it — but it is worth knowing that a restart is not free for what
+was playing through it.
+
+### Verified
+
+Full sweep re-run at 2560x1440 with four streams live, on the debug build, after
+all four fixes: twenty-one captures across framed and bare, mixer open and
+closed, 160x60 to 2560x1440, plus tiled and fullscreen. Release build rebuilt
+from the same tree.
+
+Desk restored: game and Steam stopped, test sources killed, nested session
+stopped, headset unmuted at 100%, default sink back on the headset, no blocklist
+entries left in `42hzrc`, and the desktop instance running again.
+
+### Still open
+
+Milestone 2's whole-theme switch under load. Milestone 3 is otherwise done.
+
+---
+
 ## 2026-08-31 — 42Hz was moving Omarchy's speaker tuning, and getting away with it
 
 **Commit:** `d3e217d`

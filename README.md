@@ -10,7 +10,7 @@ QML interface that tracks the active Omarchy theme.
 See [`project.md`](project.md) for design goals and milestones, and
 [`docs/dev-diary.md`](docs/dev-diary.md) for the running development diary.
 
-**Status:** milestone 1 complete; milestones 2 and 3 in progress. The
+**Status:** milestones 1 and 3 complete; milestone 2 in progress. The
 EasyEffects-derived core builds and runs under its own identity against the
 pinned upstream base, and is verified against real application streams, the EQ
 LV2 provider and its failure path, default-sink routing, forced termination, and
@@ -18,12 +18,15 @@ a speaker-tuning filter-chain. Milestone 2's responsive behaviour has been swept
 across tiled, floating, narrow, wide and fullscreen geometries and the defects
 it found are fixed; the theme is verified against every shipped Omarchy theme
 and follows a live text-size change, leaving a whole-theme switch under load as
-the last open item. Milestone 3 has been swept at graph level — device churn,
-virtual sinks and stream capture all behave, and the two defects it found are
-fixed: a feedback loop 42Hz would build through its own sink, and its overriding
-of a filter-chain stream's routing pin. Speaker-tuning coexistence is verified
-against a hand-built filter chain. Browser and game streams, and the mixer's
-on-screen display, remain.
+the last open item. Milestone 3 is verified: browser, game, music and
+ALSA-compatibility streams are captured, named and controlled by volume, mute
+and processing inclusion; device churn, virtual sinks, stream capture and a
+speaker-tuning filter chain all behave. Voice chat is covered only by analogy —
+its clients are Electron, and so the browser case — with no live call made. Five defects were found and fixed along
+the way — a feedback loop 42Hz would build through its own sink, its overriding
+of a filter-chain stream's routing pin, a volume reading nothing else on the
+desktop agreed with, a mixer clipped by the window edge in bare chrome, and a
+stream list that hid rows without saying so.
 
 42Hz's own frontend lives in [`frontend/`](frontend) and renders the live spectrum
 on the active Omarchy theme — palette, typography and spectrum ramp all resolved
@@ -41,7 +44,11 @@ the title.
 Signal and capability state is reported in the centre of the window, and silence
 is one of those states: a stream that is open and playing nothing is named
 rather than left as an empty window. An application mixer lists live playback
-streams with volume, mute, and processing-inclusion controls. Two chrome modes
+streams with volume, mute, and processing-inclusion controls. Its volume reading
+is the one `pactl`, `wpctl` and Omarchy's own volume OSD show, so a stream reads
+the same here as anywhere else on the desktop and the arrow keys step by the
+same 5%. When the window is too short to draw every stream, the count it cannot
+show is marked on the divider rather than left to be discovered. Two chrome modes
 are switchable from the keyboard, every action is reachable by key at every
 size, and key hints are drawn in the theme's accent wherever they appear.
 

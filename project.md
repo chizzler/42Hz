@@ -5,7 +5,7 @@
 - **Public name:** 42Hz
 - **Executable:** `42hz`
 - **Working directory:** `~/Work/42Hz/`
-- **Status:** milestone 1 complete; milestones 2 and 3 in progress. Milestone 2's responsive sweep has been run and its defects fixed, the theme is verified across every shipped theme and follows a live text-size change; a whole-theme switch under load is what remains. Milestone 3 has been swept at graph level and the two defects it found are fixed — a feedback loop 42Hz built through its own sink, and its overriding of a filter-chain stream's `node.dont-move` pin. Speaker-tuning coexistence is verified against a hand-built filter chain; browser and game streams and the mixer's on-screen display remain. Progress, verification and open threads are tracked in [`docs/dev-diary.md`](docs/dev-diary.md), not here.
+- **Status:** milestone 1 complete; milestone 3 complete; milestone 2 in progress. Milestone 2's responsive sweep has been run and its defects fixed, the theme is verified across every shipped theme and follows a live text-size change; a whole-theme switch under load is what remains. Milestone 3 is verified: browser, game, music and ALSA-compatibility streams are captured, named and controlled — voice chat only by analogy, its clients being Electron and so the browser case, with no live call made; device churn, virtual sinks, stream capture and a speaker-tuning filter chain behave; and the defects the sweeps found are fixed — a feedback loop 42Hz built through its own sink, its overriding of a filter-chain stream's `node.dont-move` pin, a volume scale nothing else on the desktop agreed with, a mixer clipped by the window edge in bare chrome, and a stream list that hid rows without saying so. Progress, verification and open threads are tracked in [`docs/dev-diary.md`](docs/dev-diary.md), not here.
 
 ### How to read this document
 
@@ -333,6 +333,16 @@ surface in the parent session, so the parent's layout decides its size and a
 ceiling, geometries are clamped to it, and a capture is labelled with the size
 actually granted rather than the size requested.
 
+Clamping keeps a caption honest; it is not a way to run a sweep on an output too
+small to hold it. On a busy parent workspace the nested output is a tile a few
+hundred pixels wide, every geometry collapses onto it, and the sweep reports a
+pass over twenty-one correctly labelled captures of the same window. The sweep
+therefore refuses below a size at which its cases are distinguishable, and
+`nested-session.sh expand` fullscreens the nested window on the parent to give
+it one — restating the monitor rule at the size the parent actually granted,
+since the rule written at startup names the size that was asked for and a stale
+one holds the window at the old geometry inside a bigger output.
+
 Three properties of the observation corrupt evidence quietly, in the same way
 the Release build and the logging routing do:
 
@@ -349,6 +359,13 @@ the Release build and the logging routing do:
   one, so a capture of a silent, still window hangs while the same capture of a
   live spectrum returns at once. It reads as a wedged application.
   `debug:vfr = false` — the option is no longer under `misc:`.
+- **An idle-blanked parent starves it the same way, from outside.** A nested
+  compositor renders only while its own window receives frame callbacks, and a
+  display the idle daemon has switched off delivers none. Every capture then
+  blocks, indistinguishably from the covered-window case, and a sweep long
+  enough to be worth running is long enough to reach the idle timeout. The
+  parent's `dpmsStatus` is what tells the two apart, and waking it is part of
+  making room to capture in.
 - **A new instance draws timed warning banners into its own output** for about
   fifteen seconds. Wait them out before capturing.
 
@@ -441,6 +458,16 @@ A stream whose client pins its own target — `pw-play --target=…` does — st
 where it is when it is bypassed, because the link change is metadata-only. It is
 still refused capture the next time it appears. This is a limitation of the
 mechanism, not of the control.
+
+**Volume is shown and stepped in the scale the rest of the desktop uses.** A
+PipeWire node carries linear amplitude; `pactl` and `wpctl` both report its cube
+root, and Omarchy's OSD reads `pactl` — so a stream at 0.2 on the node is 58%
+everywhere a user can already see it. A mixer printing the node's own figure
+gives one stream two numbers and disagrees with the system on the one that is
+visible elsewhere, so the panel displays, steps and fills its meter in the cube
+root and cubes on the way back to the node. This is presentation only: nothing
+below the panel changes, and the 5% step then means what a 5% step means to
+every other control on the desk.
 
 - keep input and output processing pipelines separate, and note that each is
   singular: one chain per direction, shared by every stream in it;
