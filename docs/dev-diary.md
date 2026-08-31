@@ -13,6 +13,8 @@ Detailed evidence is in `docs/spike-*.md`.
 
 ## 2026-08-31 (night, third pass) — The clean cycle, before packaging
 
+**Commit:** `065b15e`
+
 Everything since milestone 1 has been built incrementally, so the claim that a
 clean checkout reaches a working binary in four commands had not been tested for
 days. It does.
