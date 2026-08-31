@@ -13,6 +13,8 @@ Detailed evidence is in `docs/spike-*.md`.
 
 ## 2026-08-31 (late) — The equalizer
 
+**Commit:** `354d940`
+
 Milestone 4. The core already carried the whole thing — `equalizer.cpp`, 32
 bands per channel, APO import/export — so this was a frontend job and a set of
 decisions about what not to expose.
