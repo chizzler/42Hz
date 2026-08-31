@@ -13,6 +13,8 @@ Detailed evidence is in `docs/spike-*.md`.
 
 ## 2026-08-31 (evening) — Cutting the documentation back
 
+**Commit:** `b34141d`
+
 4,578 lines of prose against 2,753 lines of frontend. The verification harness
 earned its keep — it caught the feedback loop, the `node.dont-move` override and
 the volume scale — but the writing had not: entries with section headings and
