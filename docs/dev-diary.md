@@ -13,6 +13,8 @@ Detailed evidence is in `docs/spike-*.md`.
 
 ## 2026-08-31 (night) — The audio profiles, built
 
+**Commit:** `d809ca2`
+
 The design from the previous entry, implemented. `AudioProfiles.qml` is a
 singleton holding five curves as anchor points; the editor resolves one against
 the band frequencies the core actually produced and writes the result through
