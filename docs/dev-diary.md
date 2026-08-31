@@ -13,6 +13,8 @@ Detailed evidence is in `docs/spike-*.md`.
 
 ## 2026-08-31 (late, second pass) — Audio profiles, scoped
 
+**Commit:** `52ecd6d`
+
 No code. The design for a shipped set of EQ curves, written into `project.md`
 before building it.
 
