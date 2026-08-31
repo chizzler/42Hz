@@ -24,6 +24,8 @@ happens — this remains the account of record. Detailed evidence lives in
 
 ## 2026-08-31 (afternoon) — The mixer was showing a number nothing else agreed with
 
+**Commit:** `22cf9ae`
+
 Milestone 3's remaining verification: browser streams, game streams, and the
 mixer's on-screen display, which had not been re-swept since the legend and the
 top edge changed. Four defects, three of them in the mixer and one in the
