@@ -15,6 +15,23 @@ Item {
     property string spectrumStyle: "bars"
     property bool streamsVisible: false
 
+    // The equalizer editor. Mutually exclusive with the mixer -- both want the
+    // bottom of the surface and the arrow keys, and a window showing two
+    // reveal-on-intent panels at once is not the resting surface this is
+    // supposed to be.
+    property bool eqVisible: false
+
+    property var eqPluginDB: null
+    property bool eqInstalled: true
+    property var eqLeftDB: null
+    property var eqRightDB: null
+
+    readonly property alias eqPanel: eq
+
+    // One flag for "something is revealed below the spectrum", so the divider
+    // and the spectrum's bottom edge do not have to know which.
+    readonly property bool panelVisible: surface.streamsVisible || surface.eqVisible
+
     // Announcements. The window raises these; they are drawn here so that in
     // framed chrome they land inside the border rather than across it -- the
     // toast used to be anchored to the window and wrote over the linework.
@@ -88,8 +105,8 @@ Item {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: parent.top
-        anchors.bottom: surface.streamsVisible ? divider.top : parent.bottom
-        anchors.bottomMargin: surface.streamsVisible ? surface.gutter : 0
+        anchors.bottom: surface.panelVisible ? divider.top : parent.bottom
+        anchors.bottomMargin: surface.panelVisible ? surface.gutter : 0
 
         sourceComponent: surface.spectrumStyle === "cells" ? cellsStyle : barsStyle
 
@@ -148,12 +165,12 @@ Item {
         anchors.leftMargin: surface.contentInset
         anchors.right: hidden.visible ? hidden.left : parent.right
         anchors.rightMargin: hidden.visible ? surface.gutter : surface.contentInset
-        anchors.bottom: panel.top
+        anchors.bottom: surface.eqVisible ? eq.top : panel.top
         anchors.bottomMargin: surface.gutter
 
         height: Theme.lineThickness
         color: Theme.withAlpha(Theme.foreground, Theme.controlBorderAlpha)
-        visible: surface.streamsVisible
+        visible: surface.panelVisible
     }
 
     // The mixer takes the room it needs and no more, up to half the surface.
@@ -220,5 +237,27 @@ Item {
 
         height: surface.streamsVisible ? Math.min(surface.height * 0.5 - divider.height - surface.gutter, Math.max(1, panel.count) * panel.rowHeight) : 0
         visible: surface.streamsVisible
+    }
+
+    // Same allowance as the mixer, and it asks for less than that: a curve is
+    // as readable at four rows as at twenty, so spending the whole allowance
+    // on it would buy empty air above a flat response and take the room from
+    // the spectrum.
+    EqPanel {
+        id: eq
+
+        anchors.left: parent.left
+        anchors.leftMargin: surface.contentInset
+        anchors.right: parent.right
+        anchors.rightMargin: surface.contentInset
+        anchors.bottom: parent.bottom
+
+        height: surface.eqVisible ? Math.min(surface.height * 0.5 - divider.height - surface.gutter, eq.preferredHeight) : 0
+        visible: surface.eqVisible
+
+        pluginDB: surface.eqPluginDB
+        installed: surface.eqInstalled
+        leftDB: surface.eqLeftDB
+        rightDB: surface.eqRightDB
     }
 }

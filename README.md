@@ -10,8 +10,8 @@ that tracks the active Omarchy theme.
 Design and constraints are in [`project.md`](project.md); the development record
 is in [`docs/dev-diary.md`](docs/dev-diary.md).
 
-**Status:** milestones 1 and 3 complete; milestone 2 all but a whole-theme switch
-under load.
+**Status:** milestones 1, 3 and 4 complete; milestone 2 all but a whole-theme
+switch under load.
 
 ## What it does
 
@@ -31,6 +31,13 @@ processing-inclusion controls. Its volume reading is the one `pactl`, `wpctl` an
 Omarchy's volume OSD show, so a stream reads the same here as anywhere else on
 the desktop and the arrow keys step by the same 5%. When the window is too short
 to draw every stream, the count it cannot show is marked on the divider.
+
+A ten-band graphic equalizer sits in front of the spectrum, so a boost lifts the
+part of the picture it applies to. Its bands are spread logarithmically across
+20 Hz–20 kHz — the spectrum's own axis — so each control sits directly under the
+frequencies it moves. It is in the chain from startup and stays there: showing,
+hiding or resizing the editor leaves the audio graph untouched, and `b` bypasses
+the equalizer itself rather than rebuilding the pipeline around it.
 
 Two chrome modes switch from the keyboard, every action is reachable by key at
 every size, and key hints are drawn in the theme's accent. Palette, typography

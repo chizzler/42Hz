@@ -139,18 +139,95 @@ Window {
     // suppresses its own change signal when the value has not moved.
     readonly property bool spectrumFlowing: root.points.length > 0
 
-    // Whether there is anything for bypass to bypass.
+    // Whether the equalizer is passing audio through untouched. Read from the
+    // plugin's own flag, which is what `b` moves.
+    readonly property bool eqBypassed: root.eqReady && root.eqPluginDB.bypass
+
+    // ---- the equalizer -----------------------------------------------------
+
+    // 42Hz ships one effect, and it is in the chain from startup and stays
+    // there.
     //
-    // The spectrum and the level meter are linked into the output chain
-    // unconditionally; bypass substitutes an empty plugin list for
-    // DbStreamOutputs.plugins and nothing else. With that list empty, both
-    // branches are the same list, so the graph it rebuilds is identical to the
-    // one it tore down -- an interruption, a title claiming a state that does
-    // not exist, and no change to a single sample.
+    // "On demand" in milestone 4 is the *editor*, not the plugin. Adding and
+    // removing the plugin as the editor is shown and hidden would rebuild the
+    // output path on every keypress, which is exactly the interruption the
+    // milestone forbids -- so the graph is built once and the editor is pure
+    // interface over settings the core is already acting on.
     //
-    // This lights up on its own when milestone 4 puts the equalizer in the
-    // list, which is what makes it the right test rather than a hardcoded off.
-    readonly property bool effectsPresent: DbStreamOutputs.plugins.length > 0
+    // There is no plugin management here and there will not be: the chain is
+    // this one entry. Writing it on every start also repairs a settings file
+    // that lost it.
+    readonly property string eqInstance: "equalizer#0"
+
+    // How many bands the graphic EQ offers. calculateFrequencies() divides
+    // 20 Hz - 20 kHz logarithmically into exactly this many, so it is the
+    // resolution of the curve rather than a count of controls to manage.
+    readonly property int eqBandCount: 10
+
+    property var eqBackend: null
+    property var eqPluginDB: null
+    property var eqLeftDB: null
+    property var eqRightDB: null
+
+    readonly property bool eqReady: root.eqBackend !== null && root.eqPluginDB !== null
+
+    // Available, as distinct from present. The LV2 provider may be missing --
+    // the core reports that honestly and passes audio through, having still
+    // created the filter node -- and a window offering an editor for a plugin
+    // that is not doing anything would be the dishonest case `project.md`
+    // names for the bypass key.
+    readonly property bool eqInstalled: root.eqReady && root.eqBackend.packageInstalled
+
+    function ensureEqualizer() {
+        if (!root.audioServiceReady)
+            return;
+
+        if (DbStreamOutputs.plugins.indexOf(root.eqInstance) < 0)
+            DbStreamOutputs.plugins = [root.eqInstance];
+    }
+
+    // The instance does not exist the moment the setting is written -- the
+    // core builds it in response -- so this is retried rather than read once.
+    function resolveEqualizer() {
+        if (root.eqReady || !root.audioServiceReady)
+            return;
+
+        const backend = StreamOutputEffects.getPluginInstance(root.eqInstance);
+        if (!backend)
+            return;
+
+        const db = DatabaseManager.soePluginsDB[root.eqInstance];
+        if (!db)
+            return;
+
+        root.eqBackend = backend;
+        root.eqPluginDB = db;
+        root.eqLeftDB = DatabaseManager.soePluginsDB[root.eqInstance + "#left"] ?? null;
+        root.eqRightDB = DatabaseManager.soePluginsDB[root.eqInstance + "#right"] ?? null;
+
+        // Stated every time rather than once on first run. numBands is the
+        // only thing that decides where the bands sit, and a settings file
+        // written by a different count -- an older 42Hz, a hand edit -- would
+        // otherwise leave frequencies that do not match the curve on screen.
+        root.eqPluginDB.numBands = root.eqBandCount;
+        root.eqBackend.calculateFrequencies();
+
+        // Type, mode, slope and width already default to what a graphic EQ
+        // wants: band type 1 is Bell, mode 0 is RLC (BT), slope 0 is x1, and
+        // calculateFrequencies() resets width. Nothing to set.
+    }
+
+    Timer {
+        interval: 250
+        running: root.audioServiceReady && !root.eqReady
+        repeat: true
+        triggeredOnStart: true
+
+        onTriggered: {
+            root.ensureEqualizer();
+            root.resolveEqualizer();
+        }
+    }
 
     // ---- chrome ------------------------------------------------------------
 
@@ -184,9 +261,20 @@ Window {
 
     readonly property string spectrumStyle: root.spectrumStyles[root.spectrumStyleIndex]
 
-    // Reveal on intent: the mixer is not a mode the window is in, it is a
-    // thing the user asked to see. Hiding it changes nothing in the graph.
+    // Reveal on intent: neither of these is a mode the window is in, they are
+    // things the user asked to see. Hiding either changes nothing in the graph
+    // -- the equalizer goes on equalising with its editor closed.
+    //
+    // They are mutually exclusive. Both want the bottom of the surface and
+    // both want the arrow keys, and a window showing two revealed panels at
+    // once has stopped being a spectrum with things available from it.
     property bool streamsVisible: false
+    property bool eqVisible: false
+
+    function reveal(what) {
+        root.streamsVisible = what === "streams" ? !root.streamsVisible : false;
+        root.eqVisible = what === "eq" ? !root.eqVisible : false;
+    }
 
     // The floor is the chrome's, not the window's. Framed mode pays for a
     // title row, a legend row and border air that do not shrink; bare mode
@@ -207,6 +295,11 @@ Window {
             item.points = Qt.binding(() => root.points);
             item.barWidth = Qt.binding(() => root.barWidth);
             item.streamsVisible = Qt.binding(() => root.streamsVisible);
+            item.eqVisible = Qt.binding(() => root.eqVisible);
+            item.eqPluginDB = Qt.binding(() => root.eqPluginDB);
+            item.eqInstalled = Qt.binding(() => root.eqInstalled);
+            item.eqLeftDB = Qt.binding(() => root.eqLeftDB);
+            item.eqRightDB = Qt.binding(() => root.eqRightDB);
             item.audioServiceReady = Qt.binding(() => root.audioServiceReady);
             item.processingReady = Qt.binding(() => root.processingReady);
             item.spectrumFlowing = Qt.binding(() => root.spectrumFlowing);
@@ -222,8 +315,8 @@ Window {
             if (item.legendItems !== undefined)
                 item.legendItems = Qt.binding(() => root.legendItems);
 
-            if (item.effectsPresent !== undefined)
-                item.effectsPresent = Qt.binding(() => root.effectsPresent);
+            if (item.bypassed !== undefined)
+                item.bypassed = Qt.binding(() => root.eqBypassed);
 
             // The controls and the keys are one path. A shell that draws
             // steppers reports what was pressed; deciding what a step means
@@ -233,6 +326,9 @@ Window {
 
             if (item.styleStepped !== undefined)
                 item.styleStepped.connect(keyLayer.stepStyle);
+
+            if (item.eqPanel !== undefined && item.eqPanel !== null)
+                item.eqPanel.changed.connect(root.showToast);
         }
     }
 
@@ -277,36 +373,58 @@ Window {
             "label": "[s]treams",
             "priority": 100,
             "advertised": root.audioServiceReady,
-            "action": key => {
-                root.streamsVisible = !root.streamsVisible;
-            }
+            "action": key => root.reveal("streams")
         },
         {
-            // Global bypass is already a setting the core acts on: DbMain
-            // drives a coalescer that calls set_bypass() on both pipelines.
-            // Nothing here decides what bypass means, only that it moved.
-            "keys": [Qt.Key_B],
-            "label": "[b]ypass",
+            // The equalizer editor, and the second thing this window is for.
+            "keys": [Qt.Key_E],
+            "label": "[e]q",
             "priority": 90,
 
-            // Gated on there being effects, not on the pipeline running.
-            // `project.md` asks that only bindings backed by a live capability
-            // be advertised, and the capability behind bypass is not "is the
-            // pipeline up" -- it is "is there anything in it to switch off".
-            "advertised": root.effectsPresent,
-
+            // Backed by the plugin working, not merely existing. The core
+            // creates the filter node whether or not the LV2 provider is
+            // installed, so `ready` alone would advertise an editor for
+            // something that moves no samples.
+            "advertised": root.eqInstalled,
             "action": key => {
-                // Answering rather than acting. set_bypass() runs
-                // disconnect_filters() then connect_filters(), so toggling
-                // this with an empty chain rebuilds the whole output path,
-                // spectrum included, to arrive back where it started.
-                if (!root.effectsPresent) {
-                    root.showToast("no effects to bypass");
+                if (!root.eqReady) {
+                    root.showToast("no equalizer");
                     return;
                 }
 
-                DbMain.bypass = !DbMain.bypass;
-                root.showToast(DbMain.bypass ? "bypassed" : "processing");
+                if (!root.eqInstalled) {
+                    root.showToast("equalizer plugin not installed");
+                    return;
+                }
+
+                root.reveal("eq");
+            }
+        },
+        {
+            // Bypass, on the equalizer's own flag rather than DbMain's.
+            //
+            // DbMain.bypass runs disconnect_filters() then connect_filters(),
+            // which tears the whole output path down and rebuilds it -- the
+            // spectrum with it -- on every toggle. The plugin's own bypass is
+            // an atomic tested at the top of Equalizer::process(), so the
+            // buffer passes through untouched and the graph never moves. With
+            // one effect in the chain those two mean the same thing to a
+            // listener, and only one of them is free.
+            //
+            // Not advertised: the editor draws this as a state, and the legend
+            // gives up restated values before anything else. The key still
+            // works at every size, as every key does.
+            "keys": [Qt.Key_B],
+            "priority": 0,
+            "advertised": false,
+            "action": key => {
+                if (!root.eqReady) {
+                    root.showToast("nothing to bypass");
+                    return;
+                }
+
+                root.eqPluginDB.bypass = !root.eqPluginDB.bypass;
+                root.showToast(root.eqPluginDB.bypass ? "eq bypassed" : "eq active");
             }
         },
         {
@@ -355,6 +473,7 @@ Window {
             "advertised": false,
             "action": key => {
                 root.streamsVisible = false;
+                root.eqVisible = false;
             }
         },
         {
@@ -407,10 +526,48 @@ Window {
         }
     ]
 
+    // While the editor is up it takes the arrow keys; everything else still
+    // falls through to the window table, `b` included -- which is what keeps
+    // bypass reachable from inside the panel that shows its state.
+    readonly property var eqBindings: [
+        {
+            "keys": [Qt.Key_Up, Qt.Key_Down],
+            "label": "↑/↓ gain",
+            "priority": 100,
+            "advertised": root.eqReady,
+            "action": key => keyLayer.eq.nudgeGain(key === Qt.Key_Up ? 1 : -1)
+        },
+        {
+            "keys": [Qt.Key_Left, Qt.Key_Right],
+            "label": "←/→ band",
+            "priority": 90,
+            "advertised": root.eqReady,
+            "action": key => keyLayer.eq.moveSelection(key === Qt.Key_Left ? -1 : 1)
+        },
+        {
+            "keys": [Qt.Key_0],
+            "label": "[0] flat",
+            "priority": 80,
+            "advertised": root.eqReady,
+            "action": key => keyLayer.eq.flatten()
+        },
+        {
+            "keys": [Qt.Key_Escape],
+            "label": "[Esc] close",
+            "priority": 70,
+            "advertised": true,
+            "action": key => {
+                root.eqVisible = false;
+            }
+        }
+    ]
+
     // What the chrome may advertise, in declaration order. Deliberately free
     // of anything that changes per frame: this rebuilds when a capability or
     // the stream count moves, not when the spectrum does.
-    readonly property var legendItems: (root.streamsVisible ? root.mixerBindings : root.windowBindings).filter(b => b.advertised && b.label !== undefined).map(b => ({
+    readonly property var legendItems: (root.streamsVisible ? root.mixerBindings
+        : root.eqVisible ? root.eqBindings
+        : root.windowBindings).filter(b => b.advertised && b.label !== undefined).map(b => ({
                 "label": b.label,
                 "priority": b.priority
             }))
@@ -448,6 +605,8 @@ Window {
         // means rather than two shells racing for focus.
         readonly property var streams: shellLoader.item ? shellLoader.item.streamPanel : null
 
+        readonly property var eq: shellLoader.item ? shellLoader.item.eqPanel : null
+
         function setShell(index) {
             root.shellIndex = index;
             root.showToast(root.shells[index].name);
@@ -475,6 +634,9 @@ Window {
 
         Keys.onPressed: event => {
             if (root.streamsVisible && keyLayer.streams !== null && keyLayer.dispatch(root.mixerBindings, event))
+                return;
+
+            if (root.eqVisible && keyLayer.eq !== null && keyLayer.dispatch(root.eqBindings, event))
                 return;
 
             keyLayer.dispatch(root.windowBindings, event);

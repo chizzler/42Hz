@@ -7,7 +7,7 @@ spectrum-first Qt/QML one.
 
 - **Public name:** 42Hz **Executable:** `42hz` **Application ID:** `io.github.chizzler.42Hz`
 - **Upstream base:** EasyEffects `v8.2.8`, GPL-3.0-or-later
-- **Status:** milestones 1 and 3 complete; milestone 2 all but a whole-theme
+- **Status:** milestones 1, 3 and 4 complete; milestone 2 all but a whole-theme
   switch under load. Chronology is in [`docs/dev-diary.md`](docs/dev-diary.md).
 
 This document records what is true about the design: the decisions, and the
@@ -250,11 +250,11 @@ one.** Size decides what is *said*; the key still works. An absent capability
 means there is nothing to act on, and the key answers by reporting why, in the
 same place a mode change is reported, without touching the graph.
 
-Global bypass is the standing example: it is backed by the output chain
-containing something to switch off, not by the pipeline running, and the chain is
-empty until the equalizer is in it. The core implements bypass by substituting an
-empty plugin list, so with the list already empty it rebuilds an identical graph
-— an interruption, and a window announcing a state it is not in.
+The equalizer is the standing example: the core creates its filter node whether
+or not the LV2 provider is installed, so `[e]q` is advertised on
+`packageInstalled` rather than on the instance existing. Pressed without it, the
+key says the plugin is missing instead of opening an editor for something that
+moves no samples.
 
 Bindings are published as data that the key handler and the interface both read.
 A binding carries its key, label, the priority at which it is given up when the
@@ -264,15 +264,19 @@ capability; the action never is.
 | key | action |
 |---|---|
 | `s` | show or hide the mixer |
-| `b` | global processing bypass — advertised only while the output chain holds an effect |
+| `e` | show or hide the equalizer editor — advertised only while the LV2 provider is installed |
+| `b` | bypass the equalizer — documented, not advertised; the editor draws it as a state |
 | `f`, `1`, `2` | chrome mode — documented, not advertised |
 | `-` / `+` | bar density — a control in framed chrome, not a legend entry |
 | `[` / `]` | spectrum style — as above |
 | `Escape` | dismiss transient controls; never stops audio |
 | `q`, `Ctrl+W` | quit |
 
-While the mixer is up it takes `↑`/`↓` (select), `←`/`→` (volume), `m` (mute) and
-`p` (processing inclusion); everything else still reaches the window.
+The mixer and the editor are mutually exclusive: both want the bottom of the
+surface and both want the arrow keys. While the mixer is up it takes `↑`/`↓`
+(select), `←`/`→` (volume), `m` (mute) and `p` (processing inclusion); while the
+editor is up it takes `←`/`→` (band), `↑`/`↓` (gain) and `0` (flat). Everything
+else still reaches the window, `b` included.
 
 42Hz may ship optional example Hyprland rules, but installation never applies
 them.
@@ -468,10 +472,43 @@ There is **no per-source effect UI to build**, because there is no per-source
 chain. A later release may add more effects to the one chain, never a chain per
 stream.
 
-The chain is currently empty: `DbStreamOutputs::plugins` defaults to no plugins,
-the output pipeline runs as a live passthrough, and global bypass has nothing to
-switch off — which is why its binding is unadvertised until the equalizer is in
-that list. Putting it there is the first step of milestone 4.
+**The equalizer is in the chain from startup and stays there.** "On demand" is
+the *editor*, not the plugin: adding and removing it as the editor is shown and
+hidden would rebuild the output path on every keypress, which is the
+interruption milestone 4 forbids. 42Hz writes `DbStreamOutputs::plugins` as the
+single entry `equalizer#0` at startup, which also repairs a settings file that
+lost it, and offers no plugin management — the chain is that one entry.
+
+**It is a graphic EQ, not upstream's 32-band parametric.** The core gives every
+band a type, mode, slope, Q and width, and the defaults are already what a
+graphic EQ wants: band type is Bell, mode RLC (BT), slope x1. `numBands` is set
+to 10 and `calculateFrequencies()` divides 20 Hz–20 kHz logarithmically into
+exactly that many, setting each band's frequency and Q. Only gain is exposed.
+
+`DbSpectrum` draws the same 20 Hz–20 kHz on a logarithmic axis, so band *n* of
+*N* sits at `(n + 0.5) / N` across the width — directly under the region of the
+picture it affects, without either scale being told about the other. The
+equalizer is also *upstream* of the spectrum in the chain, so a boost visibly
+lifts the part of the picture it applies to.
+
+**Bypass is the plugin's own flag, not `DbMain::bypass`.** Global bypass calls
+`disconnect_filters()` then `connect_filters()`, tearing the output path down
+and rebuilding it — the spectrum with it — on every toggle. The equalizer's
+`bypass` is an atomic tested at the top of `Equalizer::process()`: the buffer
+passes through untouched, the graph never moves, and the spectrum keeps running
+while the two are compared. With one effect in the chain these mean the same
+thing to a listener and only one of them is free.
+
+**Instantiated is not the same as installed.** With the LV2 provider missing the
+core still creates the filter node and passes audio through, so the editor and
+its key are backed by `packageInstalled` rather than by the instance existing.
+
+**Band values are flat properties** — `band0Gain` … `band31Gain`, per channel —
+so a delegate over an index must reach them as `leftDB["band" + i + "Gain"]`.
+That reads the current value and captures no dependency, the same family as
+calling `advanceWidth()` in a binding, and there is no dynamic form that
+notifies. The editor therefore holds the gains as its own array, seeded from the
+settings and written through on change.
 
 ## Omarchy theme integration
 

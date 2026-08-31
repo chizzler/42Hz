@@ -16,6 +16,12 @@ Item {
     property int barWidth: 10
     property string spectrumStyle: "bars"
     property bool streamsVisible: false
+    property bool eqVisible: false
+
+    property var eqPluginDB: null
+    property bool eqInstalled: true
+    property var eqLeftDB: null
+    property var eqRightDB: null
 
     property string toastText: ""
     property int toastSeq: 0
@@ -50,7 +56,11 @@ Item {
     property bool processingReady: true
     property bool spectrumFlowing: true
     property bool signalPresent: true
-    property bool effectsPresent: false
+    // Whether the equalizer is currently passing audio through untouched.
+    // Handed down rather than read from a settings singleton here: the
+    // window owns the plugin, and a shell reading DbMain.bypass would be
+    // reporting a different flag from the one the key now moves.
+    property bool bypassed: false
     property int streamCount: 1
 
     // The legend is handed down as data. See Main: the same table drives the
@@ -59,6 +69,7 @@ Item {
     property var legendItems: []
 
     readonly property alias streamPanel: surface.streamPanel
+    readonly property alias eqPanel: surface.eqPanel
 
     // Horizontal inset is larger than vertical on purpose -- see above. Named
     // because the minimum size has to account for them, and two statements of
@@ -124,11 +135,7 @@ Item {
         // Bare mode draws none of this, by construction. That is the mode's
         // whole commitment, and the toast on the keypress is what reports it
         // there.
-        // The setting can be true from a session that had effects, so the
-        // title asks whether anything is actually being bypassed rather than
-        // what the setting says. A window announcing a state it is not in is
-        // the same failure as a spectrum that always fills.
-        title: DbMain.bypass && shell.effectsPresent ? shell.bypassTitle : shell.idleTitle
+        title: shell.bypassed ? shell.bypassTitle : shell.idleTitle
 
         legendItems: shell.legendItems
 
@@ -180,6 +187,11 @@ Item {
             barWidth: shell.barWidth
             spectrumStyle: shell.spectrumStyle
             streamsVisible: shell.streamsVisible
+            eqVisible: shell.eqVisible
+            eqPluginDB: shell.eqPluginDB
+            eqInstalled: shell.eqInstalled
+            eqLeftDB: shell.eqLeftDB
+            eqRightDB: shell.eqRightDB
             toastText: shell.toastText
             toastSeq: shell.toastSeq
             audioServiceReady: shell.audioServiceReady

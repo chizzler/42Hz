@@ -11,6 +11,79 @@ Detailed evidence is in `docs/spike-*.md`.
 
 ---
 
+## 2026-08-31 (late) — The equalizer
+
+Milestone 4. The core already carried the whole thing — `equalizer.cpp`, 32
+bands per channel, APO import/export — so this was a frontend job and a set of
+decisions about what not to expose.
+
+**The plugin goes in the chain at startup and stays.** "On demand" is the
+editor. Adding and removing the plugin on show/hide would rebuild the output
+path on every keypress, which is exactly the interruption the milestone
+forbids, so the requirement is met by construction rather than by care.
+
+**A graphic EQ, not upstream's parametric.** `numBands = 10`,
+`calculateFrequencies()`, and only gain exposed. Type, mode, slope and width
+already default to what a graphic EQ wants — Bell, RLC (BT), x1 — so there was
+nothing to set. The layout then came free: `calculateFrequencies()` divides
+20 Hz–20 kHz logarithmically, which is the spectrum's own axis, so band *n* of
+*N* sits at `(n + 0.5) / N` under the frequencies it moves. The equalizer is
+upstream of the spectrum in the chain, so a boost lifts that part of the
+picture.
+
+**Bypass moved off `DbMain`.** Global bypass runs `disconnect_filters()` then
+`connect_filters()` — it tears the output path down and rebuilds it, spectrum
+included, on every toggle. `Equalizer::process()` tests a plain atomic at the
+top. With one effect in the chain those mean the same thing to a listener and
+only one is free, so `b` drives the plugin's own flag, and the legend it used to
+occupy is now `[s]treams  [e]q  [q]uit`.
+
+**Three passes on the panel before it read right.** It first took the mixer's
+whole half-surface allowance to draw a flat response, which is a lot of empty
+air; the editor asks for four rows now. The zero line was drawn per band, which
+came out as ten dashes rather than an axis. And it was drawn in the theme's
+control *fill* alpha, which is for what sits behind a control, not for a line —
+at that alpha it was rendered and invisible, and each band's minimum-height bar
+became a tick with nothing to be measured from.
+
+**Instantiated is not installed.** The core creates the filter node whether or
+not the LV2 provider is present, so `[e]q` is advertised on `packageInstalled`
+and the panel says so rather than drawing a curve that moves nothing.
+
+The band properties are flat — `band0Gain` … `band31Gain` — so a delegate over
+an index reaches them as `leftDB["band" + i + "Gain"]`, which reads and captures
+no dependency. Third appearance of that family, after `advanceWidth()` and the
+`columns` object. The panel holds the gains as its own array instead.
+
+### Verified
+
+On the debug build in the nested session, with a browser and a music stream
+live. The chain formed as
+`42hz_sink → hz_soe_equalizer → hz_soe_spectrum → hz_soe_output_level → device`.
+Driving the keys: band 0 +8, band 4 −6, band 8 +5, with the readout tracking the
+selection at 7.5 kHz for band 8 — which is what
+`20 × 1.9953^8 + ½(freq1 − freq0)` predicts. A +12 dB boost on band 0 against
+the same boost bypassed are two visibly different spectra, and the band bar goes
+muted-grey when bypassed.
+
+The milestone's own requirement, measured rather than assumed: `pw-link -l`
+hashes identically across opening the editor, resizing the window to 320x200 and
+back, and closing it. The only graph churn in the log is startup, and upstream's
+idle unlink when nothing is playing.
+
+Settings round-tripped: `plugins=equalizer#0` and `numBands=10` persist, a second
+launch builds from them with no rebuild, and `[0]` leaves the gain keys absent
+from `equalizerrc` entirely, since KConfig omits a value equal to its default.
+
+Narrow: at 200x140 the readout row drops and the curve and its selection stay,
+which is the right order.
+
+### Still open
+
+Milestone 2's whole-theme switch under load.
+
+---
+
 ## 2026-08-31 (evening) — Cutting the documentation back
 
 **Commit:** `b34141d`
