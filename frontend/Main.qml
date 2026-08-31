@@ -545,6 +545,13 @@ Window {
             "action": key => keyLayer.eq.moveSelection(key === Qt.Key_Left ? -1 : 1)
         },
         {
+            "keys": [Qt.Key_P],
+            "label": "[p]rofile",
+            "priority": 85,
+            "advertised": root.eqReady,
+            "action": key => keyLayer.eq.cycleProfile(1)
+        },
+        {
             "keys": [Qt.Key_0],
             "label": "[0] flat",
             "priority": 80,

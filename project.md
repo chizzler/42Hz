@@ -7,9 +7,8 @@ spectrum-first Qt/QML one.
 
 - **Public name:** 42Hz **Executable:** `42hz` **Application ID:** `io.github.chizzler.42Hz`
 - **Upstream base:** EasyEffects `v8.2.8`, GPL-3.0-or-later
-- **Status:** milestones 1 and 3 complete; milestone 4 but for its audio
-  profiles; milestone 2 all but a whole-theme switch under load. Chronology is
-  in [`docs/dev-diary.md`](docs/dev-diary.md).
+- **Status:** milestones 1, 3 and 4 complete; milestone 2 all but a whole-theme
+  switch under load. Chronology is in [`docs/dev-diary.md`](docs/dev-diary.md).
 
 This document records what is true about the design: the decisions, and the
 constraints that were expensive to discover. It carries no dates and no
@@ -559,7 +558,11 @@ The set, named for what each does rather than for a genre:
 | `soft` | a gentle high cut, for harsh sources and long sessions |
 
 `[p]rofile` cycles them and the name is shown in the editor's readout row, beside
-the selected band's frequency and gain.
+the selected band's frequency and gain — and announced as a toast only at the
+sizes where that row has been dropped, so exactly one of the two says it at
+every width. A curve restored from settings is matched against the set on load,
+so a profile applied in an earlier session is still named rather than reading as
+somebody's custom edit.
 
 ## Omarchy theme integration
 

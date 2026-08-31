@@ -44,6 +44,22 @@ Item {
 
     property int selected: 0
 
+    // Which shipped profile the current curve is, or -1 for none. Applying one
+    // sets it; nudging any band clears it, because the window has left the
+    // profile at that point and a name that outlived the curve it described
+    // would be the same failure as a spectrum that always fills.
+    property int profileIndex: -1
+
+    readonly property string profileName: AudioProfiles.nameAt(panel.profileIndex)
+
+    // Whether the name is actually on screen. Set by the readout row, which is
+    // the thing that knows whether it fits.
+    property bool showsProfileName: false
+
+    // Where calculateFrequencies() actually put the bands. A profile is a
+    // curve, and this is what it gets resolved against.
+    property var frequencies: []
+
     // What the sliders travel over. The settings allow ±36 dB, which is a
     // repair range rather than a listening one: at that scale every ordinary
     // adjustment is a few pixels from centre and the control stops being
@@ -80,11 +96,20 @@ Item {
         }
 
         const next = [];
-        for (let i = 0; i < panel.bandCount; i++)
+        const freqs = [];
+        for (let i = 0; i < panel.bandCount; i++) {
             next.push(panel.leftDB[panel.bandKey(i, "Gain")]);
+            freqs.push(panel.leftDB[panel.bandKey(i, "Frequency")]);
+        }
 
         panel.gains = next;
+        panel.frequencies = freqs;
         panel.selected = Math.max(0, Math.min(panel.bandCount - 1, panel.selected));
+
+        // A curve restored from settings is still whichever profile it is.
+        // Without this a restart would present an applied profile as somebody's
+        // custom edit.
+        panel.profileIndex = AudioProfiles.match(next, freqs);
     }
 
     // Both channels, always. Split channels is a capability the core has and
@@ -115,20 +140,50 @@ Item {
         const next = panel.gains.slice();
         next[i] = value;
         panel.gains = next;
+
+        panel.profileIndex = -1;
     }
 
-    function flatten() {
+    // Applying one writes the same band gains the editor writes. There is no
+    // second mechanism and no mode a profile puts the window into: it is a
+    // starting point, and everything after it is ordinary editing.
+    function applyProfile(index) {
+        if (!panel.ready || panel.bandCount === 0)
+            return;
+
+        const curve = AudioProfiles.curveFor(index, panel.frequencies);
+
+        for (let i = 0; i < curve.length; i++)
+            panel.writeBand(i, curve[i]);
+
+        panel.gains = curve;
+        panel.profileIndex = index;
+
+        // Announced only where it is not already drawn. The readout row shows
+        // the name permanently, so a toast there restates what is on screen --
+        // the same rule the density and style steppers follow. The row is
+        // dropped at small heights and narrow widths, and the announcement
+        // comes back at exactly that moment.
+        if (!panel.showsProfileName)
+            panel.changed(AudioProfiles.nameAt(index));
+    }
+
+    function cycleProfile(delta) {
         if (!panel.ready)
             return;
 
-        const next = [];
-        for (let i = 0; i < panel.bandCount; i++) {
-            panel.writeBand(i, 0);
-            next.push(0);
-        }
+        const n = AudioProfiles.list.length;
 
-        panel.gains = next;
-        panel.changed("flat");
+        // From a curve that is not a profile, the first press lands on the
+        // first profile rather than somewhere unpredictable in the middle.
+        const from = panel.profileIndex < 0 ? -1 : panel.profileIndex;
+        panel.applyProfile(((from + delta) % n + n) % n);
+    }
+
+    // [0] and the `flat` profile are the same result, so they are the same
+    // thing: the key is the direct route to an entry the cycle also reaches.
+    function flatten() {
+        panel.applyProfile(AudioProfiles.flatIndex);
     }
 
     onReadyChanged: panel.reload()
@@ -140,11 +195,6 @@ Item {
         font.family: Theme.fontFamily
         font.pixelSize: Theme.fontBaseSize
     }
-
-    // The readout is what the selected band is worth, and it needs the width
-    // of the widest thing it can say. Measured, not guessed -- see StreamPanel.
-    readonly property real readingWidth: metrics.font.pixelSize > 0
-        ? Math.ceil(metrics.advanceWidth("-12.0 dB")) : 0
 
     readonly property real rowHeight: Math.round(Theme.fontBaseSize * 1.4)
 
@@ -272,44 +322,53 @@ Item {
         height: panel.rowHeight
         visible: panel.showReading && panel.ready && panel.installed && panel.bandCount > 0
 
+        // The profile on the left, the selected band on the right. They are two
+        // separate facts -- what the whole curve is, and what one band of it is
+        // worth -- so they do not share a column.
+        //
+        // Empty when the curve is nobody's profile, rather than saying so. A
+        // window with nothing to report about the profile reports nothing.
         Text {
-            id: frequency
+            id: profile
 
             anchors.left: parent.left
             anchors.verticalCenter: parent.verticalCenter
 
-            text: {
-                if (!panel.ready || panel.bandCount === 0)
-                    return "";
-
-                const hz = panel.leftDB[panel.bandKey(panel.selected, "Frequency")];
-                return hz >= 1000 ? (hz / 1000).toFixed(hz >= 10000 ? 0 : 1) + " kHz" : Math.round(hz) + " Hz";
-            }
+            text: panel.profileName
             color: Theme.foreground
             font.family: Theme.fontFamily
             font.pixelSize: Theme.fontBaseSize
-            elide: Text.ElideRight
-            width: Math.max(0, parent.width - reading.width - panel.rowHeight)
+
+            // Dropped before the band readout when the row cannot hold both:
+            // the band is what the arrow keys are moving.
+            visible: panel.showReading && panel.ready && panel.installed
+                && panel.width >= implicitWidth + bandReading.implicitWidth + panel.rowHeight
+
+            onVisibleChanged: panel.showsProfileName = visible
+            Component.onCompleted: panel.showsProfileName = visible
         }
 
         Text {
-            id: reading
+            id: bandReading
 
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
 
             horizontalAlignment: Text.AlignRight
-            width: panel.readingWidth
             text: {
-                if (panel.gains.length <= panel.selected)
+                if (!panel.ready || panel.bandCount === 0 || panel.gains.length <= panel.selected)
                     return "";
 
+                const hz = panel.frequencies.length > panel.selected ? panel.frequencies[panel.selected] : 0;
+                const label = hz >= 1000 ? (hz / 1000).toFixed(hz >= 10000 ? 0 : 1) + " kHz" : Math.round(hz) + " Hz";
                 const g = panel.gains[panel.selected];
-                return (g > 0 ? "+" : "") + g.toFixed(1) + " dB";
+
+                return label + "   " + (g > 0 ? "+" : "") + g.toFixed(1) + " dB";
             }
             color: panel.ready && panel.pluginDB.bypass ? Theme.muted : Theme.foreground
             font.family: Theme.fontFamily
             font.pixelSize: Theme.fontBaseSize
         }
+
     }
 }

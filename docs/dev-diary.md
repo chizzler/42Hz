@@ -11,6 +11,37 @@ Detailed evidence is in `docs/spike-*.md`.
 
 ---
 
+## 2026-08-31 (night) — The audio profiles, built
+
+The design from the previous entry, implemented. `AudioProfiles.qml` is a
+singleton holding five curves as anchor points; the editor resolves one against
+the band frequencies the core actually produced and writes the result through
+the same path a keypress uses.
+
+The interpolation was checked by hand rather than by eye: `bass` at band 0
+(29.95 Hz, between the +7 dB anchor at 20 and +6.5 at 60) should be 6.82, and
+6.8 is what landed in `equalizerrc`. Bands 1 to 4 the same.
+
+**A restored curve is still named.** `match()` compares the stored gains against
+each profile resolved at the same frequencies, within half the editor's step, so
+a restart presents `bass` as `bass` rather than as a custom edit. Verified across
+a real quit and relaunch.
+
+**Nudging a band drops the name**, and the readout keeps the band. Verified: 6.8
+to 7.8 on band 0 and the name gone in the same frame.
+
+One correction on the way. The name was drawn permanently in the readout row
+*and* announced as a toast, which is the restatement the density and style
+steppers already avoid. It now announces only when the row is not showing it --
+so at 280x180 the row says `bass`, and at 200x140, where the row is dropped
+entirely, the toast says it instead. Exactly one of the two, at every size.
+
+### Still open
+
+Milestone 2's whole-theme switch under load.
+
+---
+
 ## 2026-08-31 (late, second pass) — Audio profiles, scoped
 
 **Commit:** `52ecd6d`

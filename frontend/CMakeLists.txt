@@ -26,6 +26,10 @@ qt_policy(SET QTP0004 NEW)
 # components that have no parent/child relationship to pass it through.
 set_source_files_properties(SpectrumScale.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 
+# The shipped audio profiles are one table with no per-instance state, read by
+# the editor and by nothing else that should be able to hold a second copy.
+set_source_files_properties(AudioProfiles.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
+
 qt_add_qml_module(hz_frontend
     STATIC
     URI hz.ui
@@ -44,6 +48,7 @@ qt_add_qml_module(hz_frontend
         TooSmall.qml
         StreamPanel.qml
         EqPanel.qml
+        AudioProfiles.qml
         Surface.qml
         ShellFramed.qml
 )
