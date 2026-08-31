@@ -11,6 +11,29 @@ Detailed evidence is in `docs/spike-*.md`.
 
 ---
 
+## 2026-08-31 (night, third pass) — The clean cycle, before packaging
+
+Everything since milestone 1 has been built incrementally, so the claim that a
+clean checkout reaches a working binary in four commands had not been tested for
+days. It does.
+
+`fetch.sh` re-extracted over the built tree, `reduce-deps.py` re-applied the
+whole inventory, both build directories were deleted, and Release configured and
+built **254/254** targets to a 14M binary. It runs: the full chain forms —
+`42hz_sink → hz_soe_equalizer → hz_soe_spectrum → hz_soe_output_level` — and the
+window maps under Hyprland as `io.github.chizzler.42Hz`.
+
+The dependency reduction has held across everything added since milestone 1:
+**123 shared libraries and five KF6**, identical to the milestone-1 baseline,
+with no Kirigami, QtGraphs or QQC2-desktop-style. The binary grew 13M to 14M,
+which is 42Hz's own frontend, not a dependency creeping back.
+
+One stale claim corrected while checking: the scope still promised "global
+bypass", which stopped being what `b` does when bypass moved onto the plugin's
+own flag.
+
+---
+
 ## 2026-08-31 (night, second pass) — The theme switch under load, and what testing it found
 
 **Commit:** `8dcf37d`

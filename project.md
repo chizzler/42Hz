@@ -71,8 +71,9 @@ production. 42Hz is a focused frontend over a minimally changed core.
 ## Scope
 
 First release: responsive spectrum in two appearances; application-stream mixer
-with volume, mute and processing inclusion; pipeline and endpoint state; global
-bypass; on-demand output equalizer with a small set of shipped audio profiles;
+with volume, mute and processing inclusion; pipeline and endpoint state;
+processing bypass; on-demand output equalizer with a small set of shipped audio
+profiles;
 keyboard and pointer navigation at every size; live Omarchy palette and
 typography; explicit capability feedback; one-command Arch installation.
 
