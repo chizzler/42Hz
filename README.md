@@ -37,24 +37,46 @@ the mute or processing column — which shows the word a click would turn on whe
 you hover it. When the window is too short
 to draw every stream, the count it cannot show is marked on the divider.
 
-A ten-band graphic equalizer sits in front of the spectrum, so a boost lifts the
-part of the picture it applies to. Its bands are spread logarithmically across
-20 Hz–20 kHz — the spectrum's own axis — so each control sits directly under the
-frequencies it moves. It is in the chain from startup and stays there: showing,
-hiding or resizing the editor leaves the audio graph untouched, and `b` bypasses
-the equalizer itself rather than rebuilding the pipeline around it. Bands are
-draggable as well as keyed — press anywhere in a band's column and pull, and the
-band you grabbed is the one that moves.
+A ten-band graphic equalizer opens over the spectrum, taking the whole window,
+and it is one continuous curve with a handle on each band rather than a row of
+bars. Pull a handle and the line bends around it. The bands are spread
+logarithmically across 20 Hz–20 kHz — the spectrum's own axis — so a handle sits
+on the slice of picture it moves, and because the equalizer is upstream of the
+spectrum, the boost lifts that slice while you are still holding it.
 
-A small set of named audio profiles ships with it — `flat`, `loudness`,
-`speech`, `bass`, `soft` — cycled with `p` from the editor. They are creative
-control rather than correction: Omarchy's speaker tunings compensate for
-measured hardware, and these do not. Each is stored as a curve rather than a
-list of gains, so it lands on the right frequencies whatever the band count, and
-adjusting any band leaves the profile rather than silently claiming it.
+Press anywhere in a band's column and pull; the band you grabbed is the one that
+moves, however far sideways you drift. The wheel steps the band under the
+pointer, a double-click returns one band to zero, arrow keys move by a dB and by
+a tenth with `Shift`, and the travel limits are drawn and labelled so a curve's
+height is worth something before you select it.
 
-Two chrome modes switch from the keyboard, every action is reachable by key at
-every size, and key hints are drawn in the theme's accent. Palette, typography
+It is in the chain from startup and stays there: showing, hiding or resizing the
+editor leaves the audio graph untouched, and `b` bypasses the equalizer itself
+rather than rebuilding the pipeline around it.
+
+Nine named audio profiles ship with it, written out across the top of the editor
+in four runs of related intent — `flat` · `loudness` `night` · `bass` `punch`
+`warm` · `speech` `air` `soft` — with the current one marked and a line saying
+what it does. The set is visible rather than something you discover by pressing a
+key until it repeats. Each name carries the digit that selects it, so `0`–`8` go
+straight to a profile from anywhere — editor open or not — and `0` is still flat.
+Click any of them, or step with `p` and `Shift+P`; the row wraps to a second line
+rather than disappearing when the window narrows.
+
+They are creative control rather than correction: Omarchy's speaker tunings
+compensate for measured hardware, and these do not. Each is stored as a curve
+rather than a list of gains, so it lands on the right frequencies whatever the
+band count, and adjusting any band leaves the profile rather than silently
+claiming it.
+
+Two chrome modes switch from the keyboard — the spectrum alone, or the spectrum
+inside a drawn border with title, controls and key legend. Bare is a resting
+state rather than a blank one: move the pointer onto the window and the frame is
+disclosed, move it away and the frame withdraws along with anything you opened,
+so a borderless window still tells you what it can do the moment you reach for it
+and goes back to being a spectrum the moment you don't. Choosing framed stays
+framed, and keeps what it was showing. Every action is reachable by key at every size, and key hints are drawn
+in the theme's accent. Palette, typography
 and spectrum ramp are all resolved from Omarchy state and follow a theme change
 without a restart.
 

@@ -11,6 +11,446 @@ Detailed evidence is in `docs/spike-*.md`.
 
 ---
 
+## 2026-09-01 (sixth pass) — A preset that kept its highlight
+
+**Commit:** _(backfilled)_
+
+A preset clicked and then left behind stayed lit. Two causes, both mine, and both
+of a kind this diary has already recorded once.
+
+**Two hit areas under one control.** The comment above the digit and the name
+said "one control: the same press, the same hover" — and there were two
+`MouseArea`s, one per word, because the hit area lived in the `Word` component.
+So there were two independent answers to "is the pointer on this", and the name's
+colour read only its own. `Word` is a label now, with no hit area at all, and the
+entry carries one over both. **A comment asserting an invariant is not the
+invariant**, and this one had been wrong since the digits were added.
+
+**A conditional that read the hover in only one branch.**
+
+    shade: entry.selected ? accent : (hovered ? bright : muted)
+
+`a ? b : c` does not evaluate `c` while `a` is true, so while an entry was
+selected the binding registered **no dependency on the pointer at all**. An entry
+that lost the selection while the pointer was still on it — or that was told
+about the pointer only while selected — had no way to be told it had changed. The
+hover is read before the branch now, so every evaluation declares it.
+
+That is the third time this shape has bitten: `advanceWidth()` called in a
+binding, `pointerOver || withdrawHold.running` in the frame's withdrawal, and now
+this. **Any operand a binding may skip is an undeclared dependency**, and the
+ternary is as guilty as the `||` — the previous entry's rule was written about
+`||` and should have been written about short-circuiting.
+
+**`pragma ComponentBehavior: Bound` on the file**, which qmllint had been asking
+for since the inline `Word` component was introduced. Without it an inline
+component used inside a `Repeater` delegate resolves outer ids dynamically, which
+is its own route to the wrong item answering — not proven to be at fault here,
+but not worth leaving open in the one file that had both.
+
+**The heading needed more than air.** `Presets` set apart by padding alone read
+as a tenth entry that had lost its number. A vertical rule now stands between the
+label and the list, in the same border alpha as the group marks, because it is
+furniture and belongs with them. Uppercase was the other candidate and is wrong
+for this window — nothing else here shouts, and `PRESETS` would be the only
+capital letter on screen.
+
+**Not verified here.** The bug is click-driven and the nested session has no
+pointer injection; warping the cursor delivered no hover in any of three attempts,
+so the fix is reasoned and reviewed rather than reproduced. The rule and the
+selected-state colouring are confirmed by capture.
+
+---
+
+## 2026-09-01 (fifth pass) — The preset row says what it is
+
+**Commit:** _(backfilled)_
+
+Two small things in the editor, both about the row explaining itself.
+
+**`Presets` heads the row**, as a caption: no digit, no hit area, and more air
+after it than the entries give each other, so it reads as the label of a list
+rather than the first thing in one. Nine bare words along the top edge were
+readable once you knew what they were, which is not the same as legible. The
+`Word` component grew an optional right pad for it — air carried on the item
+rather than added by the positioner, so one word can stand further off its
+neighbour without changing every other gap in the row.
+
+**The note has come up out of the muted role, and the spectrum yields to make
+room for it.** As loose text over the picture it read as a stray line of the
+picture — and the bottom of the window is exactly where the bars are tallest, so
+standing the spectrum back to 40% in editor mode was not enough on its own.
+
+**The wrong fix, tried first, and why it was wrong.** A darker plate behind the
+note. It made the row read as a panel laid on the window rather than as part of
+it, and it only ever covered the note — leaving the band's frequency and gain, at
+the other end of the same row, still competing with the bars. The right shape is
+to stop the artwork rather than to put something over it: a full-width band in
+the surface's own background, no other colour, faded up over a row's height so
+the picture ends rather than being cut at a line.
+
+**Two details the band turns on.** Its transparent stop is the background at zero
+alpha, never `transparent` — a ramp to a colourless stop travels through black,
+which on a light theme is a bruise across the bottom of the window. And both
+stops carrying the same RGB is what makes it theme-agnostic: an alpha fade of one
+colour has no hue path to go wrong, so there is no light-theme case to check
+separately. It also lives in the surface rather than in the editor, because it is
+the *spectrum* yielding, and the editor stands back from the window's edges in
+bare chrome — a band drawn inside it would have left a sliver of unfaded picture
+down each side.
+
+**A finding kept from the plate that was thrown away.** It used `backgroundDark`
+and was invisible: surface `(26, 27, 38)`, plate `(19, 20, 28)`. Real, and nothing
+you would see. Qt's `darker(130)` divides an HSV *value* rather than subtracting
+from it, so on a background sitting at about 10% value it can only move it a few
+counts out of 255. **A darkening step defined as a ratio does almost nothing to a
+near-black surface**, which is what every theme this window ships against is built
+on. Worth knowing next time something wants to be a shade darker.
+
+Verified against live signal — pink noise into `42hz_sink` — at 900×520, 540×420
+and 540×200: the bars taper out above the row and both ends of it read cleanly at
+every size, including the floor where the profile row has wrapped to two lines.
+
+
+---
+
+## 2026-09-01 (fourth pass) — Leaving a bare window is Escape
+
+**Commit:** _(backfilled)_
+
+In bare chrome the pointer leaving now dismisses the mixer and the editor along
+with the disclosed frame. Bare is the resting state and the panels are things the
+user asked to see; a hand that has gone elsewhere is no longer asking. Framed
+chrome is a mode the user chose to sit in and keeps what it was showing.
+
+It cost almost nothing because the guards were already in the right place.
+Extracting "the pointer counts as present" — still over the window, inside the
+withdrawal's hold, or holding a drag from outside — gave one expression that the
+disclosure and the dismissal both read, so brushing the window's edge cannot slam
+the mixer shut and neither can releasing a band outside the window. Escape and
+the withdrawal now run the same `dismiss()` rather than two copies of what
+"nothing revealed" means.
+
+**The short-circuit shape again, and why it is right this time.** `pointerHeld ||
+chromeBusy` does not read the drag while the pointer is in — which is correct
+here, because the drag only matters at the moment the pointer goes, and at that
+moment `pointerHeld` is false and the drag *is* read. It stays read on every
+later evaluation, so a drag ending after the pointer has gone still arrives. Same
+construct as the bug of the previous pass, opposite verdict; **the question is
+never "does it short-circuit" but "is the unread operand one that can change the
+answer while it is unread".**
+
+**A bug found on the way, older than this change.** Collapsing the shell list to
+plain strings last pass left `setShell` reading `.name` off them, so every chrome
+switch has been throwing `Cannot assign [undefined] to QString` and showing no
+toast. It surfaced only because this session ran the debug build and read the
+journal — a Release build would have swallowed it, which is the trap
+`project.md` opens with. **A collection whose element type changes has to be
+grepped for its readers, not just its writers.**
+
+**Harness notes, since two runs were lost to them.** `wtype` reaches the window
+only after an explicit `nested-session.sh focus`; without it the keys are
+accepted and go nowhere. And a capture that looked like a failure — `s` pressed
+in bare chrome producing a fully framed window — was the feature working: the
+pointer was genuinely over the window, so bare was disclosed. Logging the key,
+the chrome and the pointer state together was what separated the two readings.
+**Instrument the state you are asserting about, not the thing you can see.**
+
+Verified end to end: with the mixer open and `chromeIndex` at bare, the pointer
+leaving fired at `present=false chrome=0 streams=true` and the window came back
+to a clean spectrum; the same move at `chrome=1` fired with `streams=true` and
+left the mixer exactly where it was.
+
+---
+
+## 2026-09-01 (third pass) — The digits go to the profiles
+
+**Commit:** _(backfilled)_
+
+`f` alone now toggles the chrome, and the number row selects audio profiles.
+
+**Two keys were being spent on a two-state toggle.** `1` and `2` set bare and
+framed directly, which `f` already covered by cycling — and with nine profiles on
+screen the digits are worth far more as the set's own shortcuts. `0`–`8` pick the
+nine in the order the row draws them, so `0` is still flat: it stops being a
+special case and becomes the first entry of a scheme.
+
+**A window binding, not an editor one.** A profile is something you put the audio
+into, not something you do to an open editor, and requiring the editor first
+would have made the fast route the slow one. With the editor open the digits fall
+through to the window table, since the editor's own table does not claim them.
+`[0] flat` left the editor legend at the same time — the row draws that digit
+beside the name now, and the legend gives up a restated control before anything
+else.
+
+**Each name carries its digit, and the row gave up its `[p]` to make room.** A
+hint for the cycle key beside nine hints for the keys that go straight there is
+advertising the slower route. The row is about 80 px wider for it and still fits
+one line to roughly 650 px, two below that.
+
+**Two things that had to be fixed for the digits to be safe.**
+
+Ten keys are bound and there are nine profiles. `applyProfile(9)` resolved an
+absent entry through `gainAt`, which returns 0 for an out-of-range index — so `9`
+would have flattened the equalizer and then marked it as a profile with no name.
+It now does nothing. **A key bound to an index needs the index checked at the
+place that uses it, not at the place that binds it**, because the table is where
+the count is easiest to get wrong.
+
+And the announcement had stopped working before it ever ran. `showsProfileName`
+read the profile row's `visible`, which keeps its own binding while an ancestor
+is hidden — fine when a profile could only be chosen from inside an open editor,
+wrong the moment a digit could choose one from anywhere. The row claimed to be
+showing the name from behind a closed editor and the change landed in silence.
+**QML's `visible` is a property, not an answer to "is this on screen".**
+
+Verified in the nested session: `4` selecting `punch` with the editor open and
+the row marking it; `3` from a closed editor applying `bass` and announcing it as
+a toast; `9` leaving the curve alone; `1` selecting `loudness` instead of
+switching chrome; and the row still inside its two-line budget at 560 and 420 px.
+
+---
+
+## 2026-09-01 (second pass) — Bare chrome discloses its frame, and the two shells become one
+
+**Commit:** _(backfilled)_
+
+A borderless window that cannot say what it can do is the same failure as an
+empty window that cannot say why it is empty. Bare chrome now keeps its
+commitment at rest and discloses the frame — title, spectrum controls, key
+legend — while the pointer is over it. Choosing framed is still a mode and is
+never overridden; `f` while a disclosure is up means "keep it".
+
+**The change that made it work was not the hover.** The two chrome modes were two
+components behind a `Loader`, so disclosing meant swapping its source: destroying
+the whole item tree and rebuilding it, spectrum renderer included, every time a
+pointer crossed the window. That resets `DbSpectrum.nPoints` and drops a frame of
+signal. Acceptable on a keypress a few times a session; not acceptable on mouse
+movement. **The resting surface does not get to blink because somebody moved a
+mouse.**
+
+So bare became the framed shell with the drawing switched off — one `drawn` flag
+on `Frame` that removes the line, the labels, the controls and every inset and
+pad they cost. `Frame`'s *values* stay live while it is off, which turns out to
+matter more than the drawing: `thickness`, `labelInset` and `minimumLegendWidth`
+are what the framed floor is computed from, and a bare window has to be able to
+ask whether a frame would fit before disclosing one.
+
+**That question had no good answer with two shells.** Bare's floor is far below
+framed's, so a bare window can be running happily at a size the frame cannot be
+drawn at — and a pointer crossing it must not replace a working display with
+"too small". Predicting the framed floor from outside would have meant stating it
+a second time, which is the drift this codebase keeps refusing. The honest
+alternative was to disclose, notice, and withdraw, with a blocked flag to stop
+the loop. One shell removed the question: it publishes `framedMinimumWidth`
+whichever chrome it is wearing, so the fit test is a comparison and the probe,
+the flag and the flash are all gone. **A refactor that deletes a workaround was
+the right refactor.**
+
+The rule that stands regardless: **a disclosed frame is only offered where it
+fits, and never reports that it does not.** The report belongs to the mode the
+user chose. Pressing `f` on a window the frame cannot fit is a question that
+deserves an answer; moving a pointer across one is not.
+
+**The bug in the hold, and the family it belongs to.** The withdrawal waits a
+moment so that crossing the window's own edge cannot strobe the frame. First
+version wrote it as `pointerOver || withdrawHold.running`, and it withdrew the
+instant hover dropped. `a || b` does not evaluate `b` while `a` is true, so while
+the pointer was in, the binding **registered no dependency on the timer at all** —
+the same family as calling `advanceWidth()` in a binding and as reaching a band
+gain through `leftDB["band" + i + "Gain"]`. Fixed by making the held state a plain
+property the timer sets, rather than a binding that reads the timer. **A
+short-circuited operand is an undeclared dependency.**
+
+**What the harness could and could not verify.** `hyprctl dispatch movecursor`
+warps the nested cursor without reliably delivering enter and leave to the
+client, so live hover could not be driven on demand — several runs recorded a
+warp with no hover event at all. The `HoverHandler` was confirmed to fire, and
+the rest was verified by forcing the disclosure and reading the numbers back:
+framed at 700×300 with `fit=true`, and at 240×100 `framedMinimumHeight` of 107.7
+against a height of 100, `fit=false`, staying bare and still reporting "silent"
+rather than reporting itself too small. Bare and framed both render correctly
+through the one shell, and the mixer and the equalizer are unchanged by the
+rewiring. **Live pointer enter and leave is the one thing left to confirm on a
+real desktop.**
+
+Dropping the `Loader` also took twenty `Qt.binding` calls and every
+`item.foo !== undefined` guard with it — those existed because bare mode did not
+declare the properties framed mode did. One component declares them all.
+
+---
+
+## 2026-09-01 — Four more profiles, and a row that can hold them
+
+**Commit:** _(backfilled)_
+
+The set went from five to nine. Everything else here follows from that: five
+names fit a line and nine do not.
+
+**The four.** `night` is the mirror of `loudness` — low frequencies are the ones
+that pass through a wall, so it takes them out rather than putting them back and
+lifts 1–3 kHz so detail survives at a level that disturbs nobody. `punch` lifts
+the kick region and the 3 kHz attack region and takes out the 300–500 Hz box
+between them, which is not a bigger `bass`: transients arrive rather than the
+bottom end getting heavier. `warm` is a tilt rather than a shelf at either end,
+body up and top down, crossing zero around 1 kHz — what `bass` and `soft` would
+do together, done as one gradient so the middle develops no step where the two
+would have met. `air` is the counterpart to `soft` and deliberately smaller than
+it: a lift is more tiring than a cut of the same size, so where `soft` takes 7 dB
+off the top this puts 5 back.
+
+**Checked, not assumed: no two profiles resolve to the same curve.** A profile is
+matched on load by comparing resolved gains within half the editor's step, so two
+that landed within that of each other at ten bands would make the name shown
+after a restart arbitrary. Resolving all nine against the shipped band centres
+and comparing every pair takes a few lines outside the app and is the only way to
+know. Nearest pair is `speech` and `night`, which share a shape and differ by
+3 dB at the bottom — clear. **A tolerance-based match is a constraint on the
+whole set, not a property of one entry**, and adding an entry is what can break
+it.
+
+**Every anchor stays inside the editor's ±12 dB travel, and applying a profile
+now clamps to it.** `night` reaches −10.6 dB at 28 Hz, closest to the rail of any
+of them. The clamp is insurance for the next one added: a band written past the
+rail draws pinned to it with no way to see how far past the setting went.
+
+**The row wraps instead of vanishing.** Nine names need about 600 px on one line,
+and dropping the set the moment it stopped being one line would have hidden it at
+most window sizes — the opposite of the change that put it on screen. Two lines
+is the budget; past that it is a paragraph rather than a row.
+
+**Line count is read off the laid-out row; wanted width still is not.** The fit
+rules elsewhere in 42Hz never ask an item for its geometry, because a width read
+from a hidden item is zero and the test that hid it would find room for it again.
+That trap does not apply here: a positioner lays its children out whether or not
+anything can see them, so the line count neither collapses nor latches. It also
+cannot be derived — the names are different lengths, so no division of a natural
+width says where the wrap actually fell. **The latch is about hiding, not about
+reading geometry**, which is worth separating because the blanket rule would have
+forced a worse answer here.
+
+**The group mark closes its run rather than opening the next.** Nine
+undifferentiated words is a list to be read; four short runs is a thing to be
+scanned, so the table's grouping is drawn with a `·`. First attempt put the mark
+before the first name of each run, and the capture at 420 px showed why that is
+wrong: the wrap fell on a group boundary and the second line began with a lone
+mark, which reads as a bullet. Closing the run instead breaks the line *after* the
+mark, which reads as the run continuing. Either placement keeps the mark
+travelling with a name so a wrap cannot strand it; only one of them reads right
+when it does.
+
+**The readout's left column carries the profile's note.** It was empty except
+when bypassed. The note says what the profile is *for*, not what it is called —
+the name is already on screen and marked a few rows up, and restating it there
+would be the duplication the row was drawn to remove. Bypass still outranks it: a
+window that is not processing has something more urgent to say about the curve.
+
+Verified at 900×520, 560×480, 420×480, 340×480 and 900×230: one line down to
+560, two below that, the note dropping when the band reading needs the room, and
+`night`, `punch` and `warm` drawing inside the rails.
+
+---
+
+## 2026-08-31 (night, fifth pass) — The equalizer becomes a curve you pull
+
+**Commit:** _(backfilled)_
+
+The EQ editor was correct and no fun. Ten bars in a four-row strip under a
+divider, one profile name in a readout, and a cycle key that hid the set it was
+cycling through. Three changes, and they are the same change: make the thing the
+user is adjusting the thing on screen.
+
+**The editor overlays the spectrum instead of dividing the window.** The mixer
+takes the bottom of the surface; the equalizer now takes all of it. The strip was
+worth about four pixels per dB and drew the curve *beside* the picture it shapes.
+Given the full width the two share one frequency axis: a handle sits on the slice
+of spectrum it moves, and since the plugin is upstream of the analyser the boost
+lifts that slice while the handle is still under the hand. An overlay also takes
+no room, which is what reveal-on-intent has to mean for a panel that covers the
+window — hiding it leaves the spectrum untouched.
+
+Two things had to move with it. The spectrum is stood back to 40% while the
+editor is over it: at full strength its ramp and the curve's accent fight for the
+same pixels on themes where the two are close. And the surface's state report goes
+quiet, because the editor carries the same report itself, in its upper half, clear
+of its own zero line. Two reports drawn over each other is the empty-window
+failure with extra steps.
+
+**A band is a handle on one continuous curve, not a bar in a row.** Ten bars
+growing out of a centre line drew ten objects and left the reader to imagine the
+response between them. Catmull-Rom through the handles, converted to cubic
+Beziers, filled to the zero line, with a bead on each band. The overshoot between
+two bands pulled hard in opposite directions is the point rather than an
+artefact; a curve that only ever ran between its handles would be a polyline with
+rounded corners.
+
+**The curve is traced through the handles' live positions, not through the gain
+array.** A keyed step glides and the curve has to glide with it — reading the
+array would snap the line while the handle eased. The handles are the geometry
+and the canvas draws what they are doing.
+
+**The bug that followed from that.** The canvas reads the palette inside its
+paint call rather than binding to it, so nothing repainted when the colour
+changed: on bypass the handles, the fill and the readout went muted while the
+stroke stayed in the accent — one control drawn in two states. Caught by
+sampling the stroke pixel across a before/after capture, not by looking, because
+at a glance the muted handles were convincing enough. **A `Canvas` reading a
+property inside `onPaint` has no dependency on it. Every input to a paint call
+needs an explicit `requestPaint`,** and the theme connection that was already
+there proved the shape of the fix without preventing the omission.
+
+**The profiles are written out.** Every name along the top of the editor, current
+one marked, any of them one click away, `p` and `Shift+P` stepping the row they
+are drawn on. The cycle key alone kept the set hidden: the only way to learn what
+existed was to press `p` five times and read the toasts. The row is the on-screen
+control, so the legend drops `[p]rofile` and applying a profile stops raising a
+toast while it is drawn — the density-and-style rule — and both return at exactly
+the width and height where it does not fit, which the captures confirm.
+
+Selection is marked with a **rule** rather than with colour, because the accent
+already means "this is a key" three characters to the left in the `[p]` hint, and
+one colour cannot carry both meanings in one row. It also survives bypass, where
+the name goes muted with the curve.
+
+**Fine steps, a wheel, and a way back to zero.** Profiles are stored to a tenth
+of a dB and the pointer's zero detent is four tenths wide, so a keyboard moving
+only in whole dB could leave a profile and never key back onto one. `Shift`
+buys the tenth, on the arrows and the wheel alike. The wheel steps the band under
+the pointer; a double-click returns that band to zero, which `[0]` does not —
+`[0]` flattens everything, and before this the only way to undo one band was to
+arrow it back and count.
+
+Adding `Shift` needed no change to the key handler. A binding that names
+modifiers requires them and one that does not is indifferent, so the modified
+variant is simply declared *before* its plain form in the same table and the
+dispatcher takes the first entry whose modifiers are satisfied.
+
+**The idea that was tried and removed.** The readout followed the hovered band,
+by analogy with the mixer showing what a hovered control would do. It is wrong
+once the editor covers the window: the pointer rests somewhere over it most of
+the time, so the readout sat on whatever band the cursor had been left on while
+the arrow keys moved a different one. Press up, watch a number that is not yours
+not move. Found in a capture where the readout said 3.8 kHz while the ring was on
+band 0 — the parent session's pointer was resting over the nested window and had
+silently claimed the reading. **A panel that grows to fill the window inherits a
+pointer it never used to have.** Hover now highlights the handle, which says what
+a press would grab, and the readout is the selection.
+
+**Two smaller ones from captures.** The `-12` rail label was centred on the
+bottom of the travel, which put half of it through the readout row; both labels
+are now pushed inward off their own lines. And at three rows of track the two
+rail labels were ten pixels apart and read as one smudged number, so they are
+dropped below four.
+
+Verified in the nested session at 900×520, 400×480, 900×200 and 900×150: profile
+row present and dropped, `[p]rofile` leaving and returning to the legend with it,
+bypass muting every part of the control, coarse and fine keyed steps landing on
+the values they claim. Pointer paths — drag, wheel, double-click, clicking a
+profile — are code-reviewed but not captured: the harness has `wtype` and no
+pointer injection, and Hyprland offers no synthetic click for a client.
+
+---
+
 ## 2026-08-31 (night, fourth pass) — A third spectrum, and a window a pointer can drive
 
 **Commit:** `0c9d870`

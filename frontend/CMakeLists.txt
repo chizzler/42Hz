@@ -48,6 +48,7 @@ qt_add_qml_module(hz_frontend
         StateReport.qml
         TooSmall.qml
         StreamPanel.qml
+        ProfileBar.qml
         EqPanel.qml
         AudioProfiles.qml
         Surface.qml

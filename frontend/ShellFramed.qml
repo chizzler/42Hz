@@ -1,7 +1,20 @@
 import QtQuick
 import ee.ui
 
-// FRAMED: the same surface inside a drawn border carrying pinned labels.
+// The shell: the surface, optionally inside a drawn border carrying pinned
+// labels.
+//
+// Both chrome modes are this one component. FRAMED draws the border, the title,
+// the legend and the spectrum controls; BARE switches all of it off and the
+// surface fills the window edge to edge, which is bare chrome's whole
+// commitment.
+//
+// One component rather than two, because the window switches between them on
+// pointer hover now. Two components meant a Loader swapping its source, which
+// destroyed and rebuilt the spectrum renderer underneath -- resetting
+// DbSpectrum.nPoints and dropping a frame of signal every time a pointer
+// crossed the window. The resting surface does not get to blink because
+// somebody moved a mouse.
 //
 // The border is drawn geometrically (see Frame.qml), so it does not depend on
 // the font carrying box-drawing glyphs and cannot be broken by
@@ -11,6 +24,9 @@ import ee.ui
 // a frame read as a frame, while top and bottom air only costs signal.
 Item {
     id: shell
+
+    // Which chrome is on. See the header: bare is this with the drawing off.
+    property bool framed: true
 
     property var points: []
     property int barWidth: 10
@@ -31,7 +47,7 @@ Item {
     // they are dropped, and the window goes back to announcing changes -- the
     // readout and the announcement are two ways of saying one thing, and
     // exactly one of them should be saying it.
-    readonly property bool showsSpectrumControls: shell.spectrumControlsFit
+    readonly property bool showsSpectrumControls: shell.framed && shell.spectrumControlsFit
 
     // Air between the title and the controls. Without it they meet, and at
     // 200 px the top edge read `42Hz10px +`.
@@ -81,9 +97,16 @@ Item {
     readonly property alias streamPanel: surface.streamPanel
     readonly property alias eqPanel: surface.eqPanel
 
+    readonly property alias dragging: surface.dragging
+
     // Horizontal inset is larger than vertical on purpose -- see above. Named
     // because the minimum size has to account for them, and two statements of
     // the same inset is one chance for the floor to disagree with the layout.
+    //
+    // These stay at their framed values while bare, and the anchors below drop
+    // them instead. The framed floor has to remain computable from a shell that
+    // is currently bare, because that is the question a bare window asks before
+    // it discloses a frame.
     readonly property real insetX: 16
     readonly property real insetY: 6
 
@@ -95,10 +118,15 @@ Item {
     // Measured against the *bypassed* title rather than the current one, so
     // that pressing `b` cannot move the floor under a window already sitting
     // near it.
-    readonly property real minimumWidth: 2 * insetX + Math.max(
+    readonly property real framedMinimumWidth: 2 * insetX + Math.max(
         surface.minimumWidth + 2 * (frame.thickness + frame.contentPad),
         frame.labelInset + shell.titleWidth + frame.labelPad + frame.radius + frame.thickness,
         frame.minimumLegendWidth)
+
+    // Bare pays for none of it. Published alongside the framed pair rather than
+    // instead of it: the window needs both -- one to know whether what it is
+    // drawing fits, the other to know whether what it might disclose would.
+    readonly property real minimumWidth: shell.framed ? shell.framedMinimumWidth : surface.minimumWidth
 
     // Measured through `titleFont.font` rather than by calling advanceWidth()
     // alone: the call captures no dependency, so the floor would stop
@@ -116,8 +144,10 @@ Item {
     // the border and its air, and none of that depends on what is on screen.
     readonly property real labelHalfHeight: Math.max(0, titleFont.height / 2 - frame.thickness / 2)
 
-    readonly property real minimumHeight: 2 * insetY + surface.minimumHeight
+    readonly property real framedMinimumHeight: 2 * insetY + surface.minimumHeight
         + 2 * (frame.thickness + frame.contentPad) + 4 * labelHalfHeight
+
+    readonly property real minimumHeight: shell.framed ? shell.framedMinimumHeight : surface.minimumHeight
 
     // Both forms, so the widest is measurable without restating it.
     readonly property string idleTitle: "42Hz"
@@ -134,10 +164,12 @@ Item {
         id: frame
 
         anchors.fill: parent
-        anchors.topMargin: shell.insetY
-        anchors.bottomMargin: shell.insetY
-        anchors.leftMargin: shell.insetX
-        anchors.rightMargin: shell.insetX
+        anchors.topMargin: shell.framed ? shell.insetY : 0
+        anchors.bottomMargin: shell.framed ? shell.insetY : 0
+        anchors.leftMargin: shell.framed ? shell.insetX : 0
+        anchors.rightMargin: shell.framed ? shell.insetX : 0
+
+        drawn: shell.framed
 
         // Top left is identity and state, and global bypass is state: with the
         // pipelines in passthrough the spectrum looks exactly as it does with
@@ -156,12 +188,12 @@ Item {
         // Top right, on the line, btop-style. These are the spectrum's own
         // adjustments rather than actions on the audio, which is why they sit
         // apart from the legend and carry a value instead of a key hint.
-        topRightWidth: shell.spectrumControlsFit ? shell.controlsWidth : 0
+        topRightWidth: shell.showsSpectrumControls ? shell.controlsWidth : 0
 
         topRightContent: Row {
             id: controls
 
-            visible: shell.spectrumControlsFit
+            visible: shell.showsSpectrumControls
             spacing: Math.round(Theme.fontBaseSize * 1.2)
 
             Stepper {
@@ -193,9 +225,11 @@ Item {
 
             anchors.fill: parent
 
-            // The border has already stood this whole surface back from the
-            // window, so the mixer needs no edge inset of its own.
-            contentInset: 0
+            // Framed, the border has already stood this whole surface back
+            // from the window, so the mixer needs no edge inset of its own.
+            // Bare, the surface's edge is the window's, and content hard
+            // against both margins loses its first and last characters to it.
+            contentInset: shell.framed ? 0 : surface.gutter
 
             points: shell.points
             barWidth: shell.barWidth

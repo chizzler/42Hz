@@ -184,18 +184,40 @@ Item {
     // Air between the content and the border.
     property real contentPad: 8
 
+    // Whether the border and its labels are on screen at all.
+    //
+    // Not drawn, this is a plain pass-through: no line, no title, no legend, no
+    // top-right controls, and none of the insets or padding they cost. That is
+    // exactly bare chrome, which is why bare is this component with the drawing
+    // switched off rather than a second component -- swapping between two would
+    // destroy and rebuild the spectrum renderer underneath every time, which is
+    // not something the resting surface should do because a pointer crossed the
+    // window.
+    //
+    // The *values* stay live while it is off. `thickness`, `labelInset` and
+    // `minimumLegendWidth` are what the framed floor is computed from, and a
+    // window in bare chrome still has to be able to ask whether the frame would
+    // fit before it discloses one.
+    property bool drawn: true
+
+    // What the border actually costs the layout, which is nothing when it is
+    // not there.
+    readonly property real edge: frame.drawn ? frame.thickness : 0
+    readonly property real pad: frame.drawn ? frame.contentPad : 0
+
     // A label is centred on its edge, so half of it falls outside the border.
     // The border is pulled in by that half rather than relying on the parent
     // leaving room -- otherwise the bottom legend is clipped by the window,
     // which the top title survives only because a text box has slack above the
     // cap height and none below the descender.
     readonly property real topInset: titleLabel.visible ? Math.max(0, titleLabel.height / 2 - thickness / 2) : 0
+
     //
     // Measured from the font rather than from the label, which is both what
     // `project.md` asks of anything a layout decision rests on and now the
     // only option: the legend is a Repeater, and `childrenRect` on it would be
     // geometry read back off the thing being laid out.
-    readonly property real bottomInset: frame.legend.length > 0 ? Math.max(0, legendFont.height / 2 - thickness / 2) : 0
+    readonly property real bottomInset: frame.drawn && frame.legend.length > 0 ? Math.max(0, legendFont.height / 2 - thickness / 2) : 0
 
     // Children go inside the border.
     default property alias content: body.data
@@ -240,6 +262,7 @@ Item {
         id: border
 
         anchors.fill: parent
+        visible: frame.drawn
 
         Connections {
             target: Theme
@@ -347,10 +370,13 @@ Item {
         function onTopInsetChanged() { border.requestPaint(); }
         function onBottomInsetChanged() { border.requestPaint(); }
         function onLineColorChanged() { border.requestPaint(); }
+        function onDrawnChanged() { border.requestPaint(); }
     }
 
     Item {
         id: topRight
+
+        visible: frame.drawn
 
         x: frame.width - frame.labelInset - width
         y: frame.topInset + frame.thickness / 2 - height / 2
@@ -370,14 +396,14 @@ Item {
         color: frame.accentColor
         font.family: Theme.fontFamily
         font.pixelSize: Theme.fontBaseSize
-        visible: frame.title.length > 0
+        visible: frame.drawn && frame.title.length > 0
     }
 
     // One label per entry rather than one Text for the row, so each carries its
     // own hit area. Positions come from `legendOffsets`, which measures the
     // same string the border breaks around.
     Repeater {
-        model: frame.legendShown
+        model: frame.drawn ? frame.legendShown : []
 
         Text {
             id: label
@@ -433,9 +459,9 @@ Item {
         id: body
 
         anchors.fill: parent
-        anchors.leftMargin: frame.thickness + frame.contentPad
-        anchors.rightMargin: frame.thickness + frame.contentPad
-        anchors.topMargin: frame.topInset * 2 + frame.thickness + frame.contentPad
-        anchors.bottomMargin: frame.bottomInset * 2 + frame.thickness + frame.contentPad
+        anchors.leftMargin: frame.edge + frame.pad
+        anchors.rightMargin: frame.edge + frame.pad
+        anchors.topMargin: frame.topInset * 2 + frame.edge + frame.pad
+        anchors.bottomMargin: frame.bottomInset * 2 + frame.edge + frame.pad
     }
 }

@@ -6,10 +6,16 @@ import ee.ui
 // The window. It owns the spectrum feed, the runtime state it reports, and the
 // keyboard; whichever chrome mode it is wearing owns everything visual.
 //
-// Two chrome modes ship, and both are permanent: BARE draws the spectrum and
-// nothing else, FRAMED puts it inside a drawn border with pinned labels. They
-// are not sizes or breakpoints -- the user picks one, and the layout inside it
-// responds to the window.
+// Two chrome modes ship: BARE draws the spectrum and nothing else, FRAMED puts
+// it inside a drawn border with pinned labels. They are not sizes or
+// breakpoints -- the user picks one, and the layout inside it responds to the
+// window.
+//
+// Bare is a resting state rather than a commitment to stay blank. It keeps its
+// commitment while nothing is asking, and discloses the frame while the pointer
+// is over the window: a window drawing no title, no legend and no controls
+// cannot say what it can do, and a hand arriving is that question being asked.
+// Choosing framed is a mode and is never overridden.
 Window {
     id: root
 
@@ -192,6 +198,12 @@ Window {
     // names for the bypass key.
     readonly property bool eqInstalled: root.eqReady && root.eqBackend.packageInstalled
 
+    // Whether the editor is drawing the profile row. What it gates is the
+    // legend entry for `[p]rofile`, on the same rule the panel uses for the
+    // toast: exactly one of the row and the announcement says the profile at
+    // any width, and neither says it twice.
+    readonly property bool eqShowsProfiles: shell.eqPanel !== null && shell.eqPanel.showsProfileName
+
     function ensureEqualizer() {
         if (!root.audioServiceReady)
             return;
@@ -246,20 +258,13 @@ Window {
 
     // ---- chrome ------------------------------------------------------------
 
-    // Bare mode is the surface with nothing around it, so it is loaded
-    // directly rather than through a wrapper that only forwards properties.
-    readonly property var shells: [
-        {
-            "name": "bare",
-            "file": "Surface.qml"
-        },
-        {
-            "name": "framed",
-            "file": "ShellFramed.qml"
-        }
-    ]
+    // What each chrome is called, for the announcement. Both are the same
+    // component now -- see ShellFramed -- so this is a name and an index, not a
+    // file to load.
+    readonly property var shells: ["bare", "framed"]
 
-    property int shellIndex: 1
+    // Which chrome the user chose.
+    property int chromeIndex: 1
 
     // Target width of one bar. The spectrum resamples to however many fit, so
     // this is signal density rather than zoom.
@@ -280,9 +285,8 @@ Window {
     // things the user asked to see. Hiding either changes nothing in the graph
     // -- the equalizer goes on equalising with its editor closed.
     //
-    // They are mutually exclusive. Both want the bottom of the surface and
-    // both want the arrow keys, and a window showing two revealed panels at
-    // once has stopped being a spectrum with things available from it.
+    // They are mutually exclusive. Both want the arrow keys, and the editor
+    // wants the whole surface.
     property bool streamsVisible: false
     property bool eqVisible: false
 
@@ -291,66 +295,167 @@ Window {
         root.eqVisible = what === "eq" ? !root.eqVisible : false;
     }
 
-    // The floor is the chrome's, not the window's. Framed mode pays for a
-    // title row, a legend row and border air that do not shrink; bare mode
-    // pays for none of it and stays useful far smaller. Asking the loaded
-    // shell what it needs is what keeps a size check from taking away a bare
-    // window that was working.
-    readonly property bool tooSmall: shellLoader.item !== null
-        && (root.width < shellLoader.item.minimumWidth || root.height < shellLoader.item.minimumHeight)
+    // Back to the resting surface. Escape runs this, and so does the pointer
+    // leaving a bare window -- one statement of what "nothing revealed" means,
+    // rather than two that can drift apart as panels are added.
+    //
+    // It touches nothing in the graph. Whatever was revealed goes on doing its
+    // job with its editor closed.
+    function dismiss() {
+        root.streamsVisible = false;
+        root.eqVisible = false;
+    }
 
-    Loader {
-        id: shellLoader
+    // ---- disclosing the frame ----------------------------------------------
+
+    // The pointer is over the window.
+    //
+    // Bare chrome draws nothing but the signal, and it keeps that at rest -- but
+    // a window with no title, no legend and no controls is also a window that
+    // cannot say what it can do, and a hand arriving is that question being
+    // asked. So the frame is disclosed on hover and withdrawn when the pointer
+    // leaves: the same reveal-on-intent rule the mixer and the editor follow,
+    // turned on the chrome itself.
+    //
+    // An explicit choice is never overridden. Choosing framed stays framed with
+    // the pointer anywhere, because that is a mode and not a disclosure.
+    property bool pointerOver: false
+
+    // Whether the pointer counts as present. Not the same as `pointerOver`: it
+    // goes true the instant the pointer arrives and stays true for a moment
+    // after it leaves, so a momentary loss cannot withdraw the frame.
+    //
+    // A plain property set by the timer rather than a binding on the timer's
+    // `running`. `a || b` does not read `b` while `a` is true, so a binding
+    // written that way registers no dependency on the timer at all while the
+    // pointer is in -- the same family as calling advanceWidth() in a binding,
+    // and it withdrew the frame the instant hover dropped instead of holding
+    // it.
+    property bool pointerHeld: false
+
+    // A drag holds the frame open. The panels keep their pointer grab after the
+    // pointer has left the window, and withdrawing under one would resize the
+    // track away from the hand still holding it.
+    readonly property bool chromeBusy: shell.dragging
+
+    // Whether the pointer counts as here at all: still over the window, inside
+    // the moment after it left, or holding a drag from outside.
+    //
+    // `a || b` does not read `b` while `a` is true, so this registers no
+    // dependency on the drag while the pointer is in -- which is correct, and
+    // deliberately so: the drag only matters at the moment the pointer goes,
+    // and at that moment `pointerHeld` is false and the drag *is* read. It is
+    // read on every later evaluation too, so a drag ending after the pointer
+    // has gone still arrives here.
+    readonly property bool pointerPresent: root.pointerHeld || root.chromeBusy
+
+    // In bare chrome, the pointer leaving is the same instruction as Escape.
+    //
+    // Bare is the resting state and the panels are things the user asked to
+    // see; a hand that has gone somewhere else is no longer asking. Framed
+    // chrome is a mode the user chose to sit in and keeps what it was showing.
+    //
+    // It inherits the withdrawal's hold and its drag guard for free, because
+    // both live in `pointerPresent`: brushing the window's edge cannot slam the
+    // mixer shut, and neither can releasing a band outside the window.
+    onPointerPresentChanged: {
+        if (!root.pointerPresent && root.chromeIndex === 0)
+            root.dismiss();
+    }
+
+    // Disclosed only where the frame would actually fit. Bare's floor is far
+    // below framed's, so a bare window can be running happily at a size the
+    // frame cannot be drawn at, and a pointer crossing that window must not
+    // replace it with a report that it is too small.
+    //
+    // The report belongs to the mode the user *chose*: pressing `f` on a window
+    // the frame cannot fit is a question that deserves an answer, and moving a
+    // pointer across one is not. Asking the shell what the frame would need is
+    // possible because there is one shell -- it publishes the framed floor
+    // whichever chrome it is currently wearing.
+    readonly property bool frameWouldFit: root.width >= shell.framedMinimumWidth
+        && root.height >= shell.framedMinimumHeight
+
+    readonly property bool disclosing: root.chromeIndex === 0 && root.frameWouldFit
+        && root.pointerPresent
+
+    readonly property bool framed: root.chromeIndex === 1 || root.disclosing
+
+    // The pointer leaving is not always meant: crossing the window's own edge
+    // strobes enter and leave, and a frame appearing and vanishing with it
+    // reads as damage rather than as chrome. Arrival is instant -- a delay
+    // there would only feel slow -- and only the withdrawal waits.
+    Timer {
+        id: withdrawHold
+
+        interval: 400
+        repeat: false
+
+        onTriggered: root.pointerHeld = false
+    }
+
+    onPointerOverChanged: {
+        if (root.pointerOver) {
+            withdrawHold.stop();
+            root.pointerHeld = true;
+        } else {
+            withdrawHold.restart();
+        }
+    }
+
+    // The floor is the chrome's, not the window's. Framed pays for a title row,
+    // a legend row and border air that do not shrink; bare pays for none of it
+    // and stays useful far smaller. Asking the shell what the chrome it is
+    // wearing needs is what keeps a size check from taking away a bare window
+    // that was working -- and a disclosure never reaches here, because it is
+    // only offered where the frame fits.
+    readonly property bool tooSmall: root.width < shell.minimumWidth || root.height < shell.minimumHeight
+
+    ShellFramed {
+        id: shell
 
         anchors.fill: parent
-        source: root.shells[root.shellIndex].file
+
         visible: !root.tooSmall
 
-        onLoaded: {
-            item.points = Qt.binding(() => root.points);
-            item.barWidth = Qt.binding(() => root.barWidth);
-            item.streamsVisible = Qt.binding(() => root.streamsVisible);
-            item.eqVisible = Qt.binding(() => root.eqVisible);
-            item.eqPluginDB = Qt.binding(() => root.eqPluginDB);
-            item.eqInstalled = Qt.binding(() => root.eqInstalled);
-            item.eqRevision = Qt.binding(() => root.eqRevision);
-            item.eqLeftDB = Qt.binding(() => root.eqLeftDB);
-            item.eqRightDB = Qt.binding(() => root.eqRightDB);
-            item.audioServiceReady = Qt.binding(() => root.audioServiceReady);
-            item.processingReady = Qt.binding(() => root.processingReady);
-            item.spectrumFlowing = Qt.binding(() => root.spectrumFlowing);
-            item.signalPresent = Qt.binding(() => root.signalPresent);
-            item.spectrumStyle = Qt.binding(() => root.spectrumStyle);
-            item.toastText = Qt.binding(() => root.toastText);
-            item.toastSeq = Qt.binding(() => root.toastSeq);
-            item.streamCount = Qt.binding(() => root.streamCount);
+        framed: root.framed
 
-            // Bare mode draws no legend and no title, and declares neither
-            // property. Reading an absent one is undefined; writing it is an
-            // error.
-            if (item.legendItems !== undefined)
-                item.legendItems = Qt.binding(() => root.legendItems);
+        points: root.points
+        barWidth: root.barWidth
+        spectrumStyle: root.spectrumStyle
+        streamsVisible: root.streamsVisible
+        eqVisible: root.eqVisible
+        eqPluginDB: root.eqPluginDB
+        eqInstalled: root.eqInstalled
+        eqRevision: root.eqRevision
+        eqLeftDB: root.eqLeftDB
+        eqRightDB: root.eqRightDB
+        audioServiceReady: root.audioServiceReady
+        processingReady: root.processingReady
+        spectrumFlowing: root.spectrumFlowing
+        signalPresent: root.signalPresent
+        streamCount: root.streamCount
+        toastText: root.toastText
+        toastSeq: root.toastSeq
+        bypassed: root.eqBypassed
+        legendItems: root.legendItems
+        legendFloorLabel: root.legendFloorLabel
 
-            if (item.bypassed !== undefined)
-                item.bypassed = Qt.binding(() => root.eqBypassed);
+        // The controls and the keys are one path. The shell reports what was
+        // pressed; deciding what a step means stays with the window, which is
+        // where the keyboard decides it.
+        onDensityStepped: delta => keyLayer.stepDensity(delta)
+        onStyleStepped: delta => keyLayer.stepStyle(delta)
+        onLegendActivated: keys => keyLayer.activate(keys)
+    }
 
-            // The controls and the keys are one path. A shell that draws
-            // steppers reports what was pressed; deciding what a step means
-            // stays with the window, which is where the keyboard decides it.
-            if (item.densityStepped !== undefined)
-                item.densityStepped.connect(keyLayer.stepDensity);
+    // The editor announces a profile only where the row that names them is not
+    // drawn, and the announcement is the window's to raise.
+    Connections {
+        target: shell.eqPanel
 
-            if (item.styleStepped !== undefined)
-                item.styleStepped.connect(keyLayer.stepStyle);
-
-            if (item.legendActivated !== undefined)
-                item.legendActivated.connect(keyLayer.activate);
-
-            if (item.legendFloorLabel !== undefined)
-                item.legendFloorLabel = Qt.binding(() => root.legendFloorLabel);
-
-            if (item.eqPanel !== undefined && item.eqPanel !== null)
-                item.eqPanel.changed.connect(root.showToast);
+        function onChanged(message) {
+            root.showToast(message);
         }
     }
 
@@ -358,13 +463,13 @@ Window {
         anchors.fill: parent
 
         visible: root.tooSmall
-        requiredWidth: shellLoader.item !== null ? Math.ceil(shellLoader.item.minimumWidth) : 0
-        requiredHeight: shellLoader.item !== null ? Math.ceil(shellLoader.item.minimumHeight) : 0
+        requiredWidth: Math.ceil(shell.minimumWidth)
+        requiredHeight: Math.ceil(shell.minimumHeight)
 
         // Bare chrome always has the lower floor, so it is worth offering
         // whenever it is not already loaded. Every binding still works here,
         // this one included -- the window keeps its keyboard at any size.
-        hint: root.shellIndex !== 0 ? "[1] for bare chrome" : ""
+        hint: root.chromeIndex !== 0 ? "[f] for bare chrome" : ""
     }
 
     // ---- keyboard ----------------------------------------------------------
@@ -461,11 +566,45 @@ Window {
             // that. The key works at every size, as every key does; it is
             // simply documented rather than displayed, and the space it used
             // to take belongs to `[e]q`.
-            "keys": [Qt.Key_F, Qt.Key_1, Qt.Key_2],
+            //
+            // One key, not three. `1` and `2` used to set the two modes
+            // directly, which spent two keys on a two-state toggle `f` already
+            // covered -- and the digits are worth more as the profile set's
+            // own shortcuts than as a second way to press this.
+            "keys": [Qt.Key_F],
             "label": "[f]rame",
             "priority": 30,
             "advertised": false,
-            "action": key => keyLayer.setShell(key === Qt.Key_F ? (root.shellIndex + 1) % root.shells.length : Math.min(root.shells.length - 1, key - Qt.Key_1))
+            "action": key => keyLayer.setShell((root.chromeIndex + 1) % root.shells.length)
+        },
+        {
+            // The profile set, one key each, in the order the editor's row
+            // draws them -- so `0` is still flat, as it has always been, and is
+            // now the first entry of a scheme rather than a special case.
+            //
+            // A window binding rather than an editor one. A profile is a thing
+            // you put the audio into, not a thing you do to an open editor, and
+            // requiring the editor first would make the fast route the slow
+            // one. With the editor open these fall through to here, since the
+            // editor's own table does not claim them.
+            //
+            // Not advertised: the editor's row draws every one of these digits
+            // beside the name it selects, and the legend gives up a restated
+            // control before anything else. Where the row is dropped,
+            // `[p]rofile` comes back to the legend and the change announces
+            // itself -- the same pair the row has always traded with.
+            "keys": [Qt.Key_0, Qt.Key_1, Qt.Key_2, Qt.Key_3, Qt.Key_4,
+                Qt.Key_5, Qt.Key_6, Qt.Key_7, Qt.Key_8, Qt.Key_9],
+            "priority": 0,
+            "advertised": false,
+            "action": key => {
+                if (!root.eqReady) {
+                    root.showToast("no equalizer");
+                    return;
+                }
+
+                keyLayer.eq.applyProfile(key - Qt.Key_0);
+            }
         },
         {
             // Not advertised, because framed chrome draws it as a control with
@@ -504,10 +643,7 @@ Window {
             "keys": [Qt.Key_Escape],
             "priority": 0,
             "advertised": false,
-            "action": key => {
-                root.streamsVisible = false;
-                root.eqVisible = false;
-            }
+            "action": key => root.dismiss()
         },
         {
             "keys": [Qt.Key_W],
@@ -564,6 +700,23 @@ Window {
     // bypass reachable from inside the panel that shows its state.
     readonly property var eqBindings: [
         {
+            // Fine steps, and the reason they exist: the profiles are stored to
+            // a tenth of a dB and the pointer's zero detent is four tenths
+            // wide, so a keyboard that only moved in whole dB could leave a
+            // profile and never key its way back onto one. Declared before the
+            // coarse pair because `dispatch` takes the first entry whose
+            // modifiers are satisfied, and the coarse entry names none.
+            //
+            // Not advertised: it is the same control as the row above it, at a
+            // different resolution, and the legend gives up a restatement
+            // before it gives up anything else.
+            "keys": [Qt.Key_Up, Qt.Key_Down],
+            "modifiers": Qt.ShiftModifier,
+            "priority": 0,
+            "advertised": false,
+            "action": key => keyLayer.eq.nudgeGain(key === Qt.Key_Up ? 0.1 : -0.1)
+        },
+        {
             "keys": [Qt.Key_Up, Qt.Key_Down],
             "label": "↑/↓ gain",
             "priority": 100,
@@ -578,18 +731,27 @@ Window {
             "action": key => keyLayer.eq.moveSelection(key === Qt.Key_Left ? -1 : 1)
         },
         {
+            // Backwards along the same row. A one-way cycle through five
+            // profiles means four presses to undo one, which is the cost of
+            // having offered a cycle rather than a list -- and the editor now
+            // draws the list, so the key should reach it in both directions.
+            "keys": [Qt.Key_P],
+            "modifiers": Qt.ShiftModifier,
+            "priority": 0,
+            "advertised": false,
+            "action": key => keyLayer.eq.cycleProfile(-1)
+        },
+        {
+            // Advertised only while the profile row is not drawn. The row is
+            // the on-screen control and names every profile permanently, so a
+            // legend entry beside it would restate what is already there --
+            // the rule the density and style steppers follow. The key works at
+            // every size, as every key does.
             "keys": [Qt.Key_P],
             "label": "[p]rofile",
             "priority": 85,
-            "advertised": root.eqReady,
+            "advertised": root.eqReady && !root.eqShowsProfiles,
             "action": key => keyLayer.eq.cycleProfile(1)
-        },
-        {
-            "keys": [Qt.Key_0],
-            "label": "[0] flat",
-            "priority": 80,
-            "advertised": root.eqReady,
-            "action": key => keyLayer.eq.flatten()
         },
         {
             "keys": [Qt.Key_Escape],
@@ -656,7 +818,7 @@ Window {
         // values permanently, so a toast there would restate what is on screen;
         // bare chrome draws neither, so it still needs telling.
         function announceAdjustment(msg) {
-            if (shellLoader.item === null || !shellLoader.item.showsSpectrumControls)
+            if (!shell.showsSpectrumControls)
                 root.showToast(msg);
         }
 
@@ -675,13 +837,16 @@ Window {
         // The mixer lives inside whichever chrome is loaded, but the window
         // owns the keyboard, so there is one place that decides what a key
         // means rather than two shells racing for focus.
-        readonly property var streams: shellLoader.item ? shellLoader.item.streamPanel : null
+        readonly property var streams: shell.streamPanel
 
-        readonly property var eq: shellLoader.item ? shellLoader.item.eqPanel : null
+        readonly property var eq: shell.eqPanel
 
+        // Sets the *chosen* chrome, not the loaded one. Pressing `f` while a
+        // disclosed frame is up therefore means "keep it", which is what a
+        // hand reaching for the key in that moment is asking for.
         function setShell(index) {
-            root.shellIndex = index;
-            root.showToast(root.shells[index].name);
+            root.chromeIndex = index;
+            root.showToast(root.shells[index]);
         }
 
         function dispatch(table, event) {
@@ -734,6 +899,18 @@ Window {
         }
 
         Keys.onPressed: event => keyLayer.route(event)
+
+        // The pointer, watched from the same layer that watches the keyboard,
+        // because the root is a Window and a HoverHandler needs an Item. It
+        // only observes: every control below keeps its own hover, its own
+        // cursor and every press.
+        HoverHandler {
+            id: pointer
+
+            acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+
+            onHoveredChanged: root.pointerOver = pointer.hovered
+        }
     }
 
     // ---- transient mode indicator ------------------------------------------

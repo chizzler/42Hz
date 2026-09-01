@@ -170,10 +170,61 @@ class Hyprland window rules match. Hyprland owns placement; 42Hz supplies an
 initial size and stays usable tiled, floated, resized, moved between monitors or
 fullscreen.
 
-Two chrome modes, both permanent and user-switchable:
+Two chrome modes, user-switchable:
 
 - **Bare** — the spectrum alone, edge to edge. Nothing else is drawn.
 - **Framed** — the spectrum inside a drawn border carrying pinned labels.
+
+**Bare is a resting state, not a commitment to stay blank.** It draws nothing but
+the signal while nothing is asking — and a window with no title, no legend and no
+controls is also a window that cannot say what it can do, so the frame is
+disclosed while the pointer is over it and withdrawn when the pointer leaves.
+That is the reveal-on-intent rule the mixer and the editor already follow, turned
+on the chrome itself: a hand arriving *is* the question being asked.
+
+**An explicit choice is never overridden.** Choosing framed stays framed with the
+pointer anywhere, because that is a mode and not a disclosure. `f` while a
+disclosed frame is up therefore means "keep it", which is what a hand reaching
+for the key in that moment is asking for.
+
+**A disclosed frame is only offered where it would fit, and never reports that it
+would not.** Bare's floor is far below framed's, so a bare window can be running
+happily at a size the frame cannot be drawn at; a pointer crossing that window
+must not replace a working display with a report that it is too small. The report
+belongs to the mode the user *chose* — pressing `f` on a window the frame cannot
+fit is a question that deserves an answer, and moving a pointer across one is
+not.
+
+**Both modes are one component.** Bare is the framed shell with the drawing
+switched off: no line, no title, no legend, no controls, and none of the insets
+or padding they cost. Two components meant a `Loader` swapping its source, which
+destroyed and rebuilt the spectrum renderer underneath — resetting
+`DbSpectrum.nPoints` and dropping a frame of signal — every time a pointer
+crossed the window. **The resting surface does not get to blink because somebody
+moved a mouse.** Keeping one component is also what lets the window ask what the
+frame *would* need while wearing bare chrome: the shell publishes the framed
+floor either way, so the fit test needs no second statement of it and no probe.
+
+**The withdrawal waits; the arrival does not.** Crossing the window's own edge
+strobes enter and leave, and a frame appearing and vanishing with it reads as
+damage rather than as chrome. A delay on arrival would only feel slow.
+
+**A drag holds the frame open.** The panels keep their pointer grab after the
+pointer has left the window, and withdrawing under one would resize the track
+away from the hand still holding it.
+
+**In bare chrome the pointer leaving is the same instruction as Escape.** Bare is
+the resting state and the mixer and the editor are things the user asked to see;
+a hand that has gone somewhere else is no longer asking, so the window returns to
+the spectrum alone. Framed chrome is a mode the user chose to sit in and keeps
+what it was showing.
+
+It touches nothing in the graph — whatever was revealed goes on doing its job
+with its editor closed — and it is one statement of what "nothing revealed" means,
+run by both Escape and the withdrawal rather than written out twice. It also
+inherits the withdrawal's hold and its drag guard for free, because both live in
+whether the pointer counts as present: brushing the window's edge cannot slam the
+mixer shut, and neither can releasing a band outside the window.
 
 The frame is drawn geometrically, not typed, so it cannot be broken by
 `omarchy font set`. Labels sit on the border line, which breaks around them.
@@ -315,17 +366,25 @@ capability; the action never is.
 | `s` | show or hide the mixer |
 | `e` | show or hide the equalizer editor — advertised only while the LV2 provider is installed |
 | `b` | bypass the equalizer — documented, not advertised; the editor draws it as a state |
-| `f`, `1`, `2` | chrome mode — documented, not advertised |
+| `f` | chrome mode — documented, not advertised; sets the *chosen* mode, which a hover disclosure never overrides |
+| `0`–`8` | select an audio profile directly — documented, not advertised; the editor's row draws each digit beside the name it picks |
 | `-` / `+` | bar density — a control in framed chrome, not a legend entry |
 | `[` / `]` | spectrum style — as above |
-| `Escape` | dismiss transient controls; never stops audio |
+| `Escape` | dismiss transient controls; never stops audio — the pointer leaving a bare window does the same |
 | `q`, `Ctrl+W` | quit |
 
-The mixer and the editor are mutually exclusive: both want the bottom of the
-surface and both want the arrow keys. While the mixer is up it takes `↑`/`↓`
+The mixer and the editor are mutually exclusive: both want the arrow keys, and
+the editor wants the whole surface. While the mixer is up it takes `↑`/`↓`
 (select), `←`/`→` (volume), `m` (mute) and `p` (processing inclusion); while the
-editor is up it takes `←`/`→` (band), `↑`/`↓` (gain), `p` (cycle audio profile)
-and `0` (flat). Everything else still reaches the window, `b` included.
+editor is up it takes `←`/`→` (band), `↑`/`↓` (gain, a tenth of a dB with
+`Shift`) and `p` (next audio profile, previous with `Shift`). Everything else
+still reaches the window, `b` and the profile digits included.
+
+A binding naming modifiers requires them and one that does not is indifferent to
+them, so a modified variant is simply declared *before* its plain form in the
+same table — the dispatcher takes the first entry whose modifiers are satisfied.
+That is how `Shift` gets a fine step without the key handler learning anything
+new.
 
 42Hz may ship optional example Hyprland rules, but installation never applies
 them.
@@ -606,14 +665,89 @@ thing to a listener and only one of them is free.
 core still creates the filter node and passes audio through, so the editor and
 its key are backed by `packageInstalled` rather than by the instance existing.
 
-**The band's control is its slot, not its bar.** A bar is drawn at just over
-half the slot and vanishes entirely at 0 dB, so hit areas cut to the bars would
-be a row of targets with gaps between them and nothing at all to press on a flat
-curve. One surface spans the track and divides it the way the bands divide it.
+**The editor takes the whole surface, over the spectrum.** The mixer takes the
+bottom of the window and divides it; the equalizer overlays. A curve confined to
+a strip under a divider had a few pixels per dB and was drawn *beside* the
+picture it shapes rather than on it. Sharing the full width puts the two on one
+frequency axis, so a handle sits on the slice of spectrum it moves and the boost
+lifts that slice under the hand. Hiding the editor leaves the spectrum exactly as
+it was: an overlay takes no room, which is what reveal-on-intent has to mean for
+a panel that covers the window.
+
+The spectrum is stood back to 40% opacity while the editor is over it. It is
+still the measurement — it is downstream of the plugin, so it is how a boost is
+confirmed rather than merely claimed — but at full strength its ramp and the
+curve's accent compete for the same pixels on themes where the two are close, and
+the thing being adjusted has to read first. The state report goes with it: the
+editor carries the same report itself, in the upper half, clear of its own zero
+line. Two reports over one another is the empty-window failure with extra steps.
+
+**A band is a handle on a continuous curve, not a bar in a row.** Ten bars
+growing out of a centre line drew ten separate objects and left the reader to
+imagine the response between them. One curve is the object being adjusted, and
+pulling any handle bends its neighbourhood.
+
+The drawn curve is a spline through the band gains, not a computed filter
+response. With Bell filters at these Qs the true response between two bands is
+close to the interpolation of their gains, and every graphic EQ draws it this
+way. It is a picture of the *setting*; the spectrum behind it is the measurement.
+Catmull-Rom through the handles, converted to cubic Beziers, and the overshoot it
+gives between two bands pulled hard in opposite directions is the point rather
+than an artefact — a curve that only ever ran between its handles would be a
+polyline with rounded corners.
+
+**The curve is traced through the handles' live positions, not the gain array.**
+A keyed step glides, and the curve has to glide with it; reading the array would
+snap the line while the handle eased. The handles are the geometry and the canvas
+draws what they are doing, which also means every frame of that glide has to
+reach it. So must a colour change: the canvas reads the palette inside its paint
+call rather than binding to it, so bypass and a theme switch both have to push a
+repaint, or the handles go muted while the curve they belong to stays in the
+accent.
+
+**Outside the outermost band the curve holds the end value** rather than
+extrapolating — the same rule the profile anchors follow, and for the same
+reason: past 20 Hz and 20 kHz the band is a shelf, not a slope heading for
+nothing.
+
+**The travel limits are drawn and labelled.** Without them a curve's height was
+worth nothing until you selected a band and read the number: the reader could see
+a shape and not what it cost. The rails carry their labels pushed inward off
+their own lines, because a label centred on the end of the travel has half of
+itself outside the track.
+
+**The band's control is its slot, not its handle.** A handle is a few pixels
+across and vanishes under the pointer reaching for it, and on a flat curve every
+one of them sits on the same line. One surface spans the track and divides it the
+way the bands divide it; pressing anywhere in a band's column grabs that band.
 
 **A drag holds the band it grabbed.** Following the pointer's x would let it
 paint across neighbours — a fine gesture to offer deliberately, and a poor one to
 hand someone who only drifted sideways while pulling a band up.
+
+**The wheel steps the band under the pointer**, coarse by default and fine with
+Shift — the same pair of steps the arrow keys take, so the two input devices
+reach the same values. **A double-click returns one band to zero**, which `[0]`
+does not: `[0]` flattens the whole curve, a different and much larger intention,
+and before this the only way to undo a single band was to arrow it back and
+count.
+
+**The keyboard needs a fine step because the values do.** Profiles are stored to
+a tenth of a dB and the pointer's zero detent is four tenths wide, so a keyboard
+that only moved in whole dB could leave a profile and never key its way back onto
+one. Shift is the modifier, on the arrows and on the wheel alike.
+
+**The readout is the selected band, never the hovered one.** Following the
+pointer was tried and is wrong once the editor covers the window: the pointer
+rests somewhere over it most of the time, so the readout sat on whatever band the
+cursor had been left on while the arrow keys moved a different one — press up,
+watch a number that is not yours not move. Hover highlights the handle, which
+says what a press would grab; what a band is *worth* is a question about the
+selection, and a press is what moves that.
+
+**A stem is drawn on the band being touched, not on all of them.** It is what
+ties a handle to the slice of spectrum behind it; drawn on every band at once it
+was a picket fence across the picture.
 
 **Zero is a detent.** It is the response the whole curve is measured against, and
 landing on it by hand within a fraction of a dB is luck. This is a detent at a
@@ -677,22 +811,148 @@ nudged the window has left it. The name is then dropped rather than qualified �
 a window claiming a profile it is no longer on is the same failure as a spectrum
 that always fills.
 
-The set, named for what each does rather than for a genre:
+The set, named for what each does rather than for a genre, and written in four
+runs of related intent:
 
 | profile | what it does |
 |---|---|
 | `flat` | the zero curve; the same result as `[0]`, and how the cycle returns |
 | `loudness` | lifts both extremes for quiet listening, following the equal-loudness contours |
+| `night` | the mirror of `loudness`: cuts the lows that pass through a wall and lifts 1–3 kHz so detail survives at a level that disturbs nobody |
+| `bass` | a low shelf, stopping by 500 Hz rather than tilting the whole curve |
+| `punch` | kick region and 3 kHz attack up, 300–500 Hz box out; games and electronic |
+| `warm` | a tilt rather than a shelf at either end — body up, top down, crossing zero around 1 kHz |
 | `speech` | rolls off rumble and lifts 1–4 kHz presence; podcasts and voice chat |
-| `bass` | a low shelf |
+| `air` | opens the top, and deliberately smaller than `soft` is: a lift is more tiring than a cut of the same size |
 | `soft` | a gentle high cut, for harsh sources and long sessions |
 
-`[p]rofile` cycles them and the name is shown in the editor's readout row, beside
-the selected band's frequency and gain — and announced as a toast only at the
-sizes where that row has been dropped, so exactly one of the two says it at
-every width. A curve restored from settings is matched against the set on load,
-so a profile applied in an earlier session is still named rather than reading as
-somebody's custom edit.
+**Every anchor stays inside the editor's ±12 dB travel**, and applying a profile
+clamps to it. A band written past the rail would draw pinned to it with no way to
+see how far past the setting actually went, which is the dishonest case the whole
+spectrum design exists to avoid.
+
+**No two of them resolve to the same curve.** A profile is matched on load by
+comparing the resolved gains within half the editor's step, so two profiles that
+landed within that of each other at the shipped band count would make the name
+shown after a restart arbitrary. The set is checked against that, not assumed to
+be distinct because the names are.
+
+**Each carries a note: what it does, in the fewest words that say it.** The
+editor draws it beside the curve rather than restating the name, which is already
+on screen and marked a few rows up. Bypass outranks it in that slot — a window
+that is not processing has something more urgent to say about the curve than what
+it was chosen for.
+
+**The spectrum yields where the readout row is, rather than the row being given
+a backdrop.** The row sits over the picture and the bottom of the window is
+exactly where the bars are tallest, so a line of text there was a line nobody
+could read — standing the spectrum back to 40% was not enough. The fix is to stop
+the artwork, not to put something over it: the band is the surface's own
+background and no other colour, so the row reads as part of the same window
+rather than as a panel laid on it. A darker plate was tried first and is wrong
+for exactly that reason.
+
+It fades up over a row's height rather than cutting at a line, because a hard
+edge across the spectrum is itself a mark on the picture. Full width and the
+whole row — the note on the left and the band's frequency and gain on the right
+are one section, and half a legible row is worse than either end of it.
+
+The ramp's transparent stop is the background at zero alpha, never `transparent`:
+a ramp to a colourless stop travels through black, which on a light theme is a
+bruise across the bottom of the window. Both stops carrying the same RGB is also
+what makes the band theme-agnostic — it is an alpha fade of one colour, with no
+hue path to go wrong.
+
+It belongs to the surface rather than to the editor, because it is the
+*spectrum* yielding. The editor stands back from the window's edges in bare
+chrome, so a band drawn inside it would leave a sliver of unfaded picture down
+each side.
+
+The text itself comes up out of the muted role, which the yielding is what pays
+for. Bypassed it goes back down with everything else — one part of a switched-off
+control staying bright is the exception that makes the state ambiguous.
+
+**The set is written out, not cycled through blind.** Every name is drawn along
+the top of the editor, the current one marked, any of them one click away. A
+cycle key on its own kept the set hidden: the only way to learn which profiles
+existed was to press `p` until they repeated and read the toasts, and the only
+way to reach the last was to pass through everything before it. `p` steps along
+the same row it draws, and `Shift+P` steps back — a one-way cycle through nine
+entries means eight presses to undo one, which is the cost of having offered a
+cycle rather than a list.
+
+**Each name carries the digit that selects it.** `0`–`8` pick the nine profiles
+in the order the row draws them, so `0` is still flat — it is now the first entry
+of a scheme rather than a special case. The digits are a *window* binding, not an
+editor one: a profile is something you put the audio into, not something you do
+to an open editor, and requiring the editor first would make the fast route the
+slow one. Ten keys are bound against nine profiles, and a digit with no profile
+behind it does nothing rather than resolving an absent entry to a curve of zeros
+— which would flatten the equalizer and then claim a profile with no name.
+
+**The row says what it is a list of.** `Presets` heads it, as a caption rather
+than a control: no digit beside it and no hit area. Without it the names were
+nine bare words along the top edge with nothing saying what they were nine of —
+readable once you know, which is not the same as legible.
+
+Air alone did not set it apart; at a glance it read as a tenth entry that had
+lost its number. A rule stands between the label and the list, drawn
+geometrically and in the same border alpha as the group marks, because it is the
+row's furniture and belongs with them rather than with the words. Not uppercase,
+which is the other obvious way to mark a label: nothing else in this window
+shouts, and `PRESETS` over a row of lowercase names would be the only capital
+letter on screen.
+
+**An entry is one control with one hit area** — the digit that selects it and the
+name it selects, pressed and hovered as a single thing. Two hit areas under one
+control means two independent answers to "is the pointer on this", and the name's
+colour reading only its own left it able to hold a highlight the pointer had
+already given to the digit beside it.
+
+The digits are drawn in the accent, the way every key hint in 42Hz is drawn, and
+they are why the row carries no `[p]` of its own: a hint for the cycle key beside
+nine hints for the keys that go straight there would be advertising the slower
+route. The current profile is marked with a **rule** rather than with colour,
+because the accent already means "this is a key" one character to the left and
+one colour cannot carry both meanings in one row; the rule also survives the
+bypassed case, where the name goes muted along with the curve and colour alone
+would have stopped saying which profile it is.
+
+**Whether the row is on screen includes whether the editor is.** A digit selects
+a profile from anywhere, so the test that decides between drawing the name and
+announcing it has to know the editor is actually open — a row keeping its own
+binding behind a closed editor would claim to be saying the name while the change
+landed in silence.
+
+**The row wraps rather than being dropped the moment it stops being one line.**
+Nine names do not fit a single line at every width the editor is usable at, and a
+set that vanished below that would be hidden at most window sizes. It wraps to a
+budget of two lines; past that it is a paragraph rather than a row, and the curve
+is what the window is for.
+
+**The runs are divided by a mark, and the mark closes its run.** A wider gap
+would be indistinguishable from the wrap. Either placement keeps the mark
+travelling with a name so a wrap cannot strand it alone, but a wrap that falls on
+a group boundary then breaks *after* the mark, which reads as the run continuing,
+rather than starting the next line with one, which reads as a bullet.
+
+**How many lines it took is read off the laid-out row; how wide it wants to be is
+not.** A width read from a hidden item is zero and the test that hid it would
+find room for it again, so the fit rules never ask the row for its geometry — but
+a positioner lays its children out whether or not anything can see them, so its
+line count neither collapses nor latches, and the names are different lengths, so
+no division of a natural width can say where the wrap actually fell.
+
+The row is the on-screen control, so while it is drawn the legend drops
+`[p]rofile` and applying a profile raises no toast — the rule the density and
+style steppers follow. Both come back at exactly the width and height where the
+row does not fit. Nothing is marked when the curve is nobody's profile, rather
+than the row saying so: a window with nothing to report about the profile reports
+nothing.
+
+A curve restored from settings is matched against the set on load, so a profile
+applied in an earlier session is still named rather than reading as somebody's
+custom edit.
 
 ## Omarchy theme integration
 

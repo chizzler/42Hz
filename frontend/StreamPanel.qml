@@ -14,6 +14,14 @@ import ee.ui
 Item {
     id: panel
 
+    // Which row is being dragged, and -1 when none is. A drag keeps its pointer
+    // grab after the pointer has left the window, so the chrome has to know one
+    // is live before it withdraws a disclosed frame and resizes the track out
+    // from under the hand.
+    property int draggingRow: -1
+
+    readonly property bool dragging: panel.draggingRow >= 0
+
     readonly property int count: list.count
 
     // How many streams the panel is not currently showing.
@@ -443,6 +451,7 @@ Item {
                     }
 
                     onPressed: mouse => {
+                        panel.draggingRow = row.index;
                         panel.select(row.index);
                         meterHit.apply(mouse.x);
                     }
@@ -452,8 +461,15 @@ Item {
                             meterHit.apply(mouse.x);
                     }
 
-                    onReleased: row.dragShown = -1
-                    onCanceled: row.dragShown = -1
+                    onReleased: {
+                        row.dragShown = -1;
+                        panel.draggingRow = -1;
+                    }
+
+                    onCanceled: {
+                        row.dragShown = -1;
+                        panel.draggingRow = -1;
+                    }
                 }
             }
 

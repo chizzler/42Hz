@@ -34,9 +34,24 @@ QtObject {
     // Outside the outermost anchors the end value is held rather than
     // extrapolated. That is what makes `bass`, whose last anchor is at 500 Hz,
     // a shelf that stops rather than a slope that keeps falling to nothing.
+    //
+    // Every anchor stays inside the editor's own +/-12 dB travel. A profile
+    // that asked for more would draw pinned to a rail with no way to see how
+    // far past it the setting actually went, which is the dishonest case the
+    // whole spectrum design is built to avoid.
+    //
+    // `note` is what the profile does, in the fewest words that say it. The
+    // editor draws it beside the curve, so the set explains itself rather than
+    // being a row of words you learn by trying each one.
+    //
+    // `group` splits the row into runs of related intent. Nine names in an
+    // undifferentiated line is a list to be read; four short runs is a thing to
+    // be scanned, and the grouping is the same one the table is written in.
     readonly property var list: [
         {
             "name": "flat",
+            "note": "the zero curve",
+            "group": 0,
             "anchors": [
                 { "hz": 20, "db": 0 },
                 { "hz": 20000, "db": 0 }
@@ -49,6 +64,8 @@ QtObject {
             // that back: strong at the bottom, untouched through the mids
             // where the contours are flattest, gentle at the top.
             "name": "loudness",
+            "note": "for listening quietly",
+            "group": 1,
             "anchors": [
                 { "hz": 20, "db": 7.5 },
                 { "hz": 60, "db": 6 },
@@ -61,10 +78,92 @@ QtObject {
             ]
         },
         {
+            // The other quiet curve, and the mirror of `loudness`. Low
+            // frequencies are the ones that pass through a wall, so this takes
+            // them out rather than putting them back, and lifts 1-3 kHz so
+            // that detail and speech survive at a level that disturbs nobody.
+            // Late listening, shared walls, a sleeping house.
+            "name": "night",
+            "note": "quiet, and it stays in the room",
+            "group": 1,
+            "anchors": [
+                { "hz": 20, "db": -11 },
+                { "hz": 50, "db": -10 },
+                { "hz": 100, "db": -6.5 },
+                { "hz": 200, "db": -3 },
+                { "hz": 400, "db": -0.5 },
+                { "hz": 1000, "db": 1.5 },
+                { "hz": 2500, "db": 3 },
+                { "hz": 5000, "db": 2 },
+                { "hz": 10000, "db": 0 },
+                { "hz": 20000, "db": -1 }
+            ]
+        },
+        {
+            // A low shelf, and only that. It stops by 500 Hz rather than
+            // tilting the whole curve, so it adds weight without taking the
+            // mids down with it.
+            "name": "bass",
+            "note": "a low shelf",
+            "group": 2,
+            "anchors": [
+                { "hz": 20, "db": 7 },
+                { "hz": 60, "db": 6.5 },
+                { "hz": 120, "db": 5 },
+                { "hz": 250, "db": 2 },
+                { "hz": 500, "db": 0 },
+                { "hz": 20000, "db": 0 }
+            ]
+        },
+        {
+            // Games and electronic music. Not a bigger `bass`: it lifts the
+            // kick region and the 3 kHz attack region and takes out the
+            // 300-500 Hz box between them, so transients arrive rather than
+            // the whole bottom end getting heavier.
+            "name": "punch",
+            "note": "kick and attack, box out",
+            "group": 2,
+            "anchors": [
+                { "hz": 20, "db": 2 },
+                { "hz": 50, "db": 5 },
+                { "hz": 90, "db": 4.5 },
+                { "hz": 180, "db": 1 },
+                { "hz": 350, "db": -2.5 },
+                { "hz": 700, "db": -2 },
+                { "hz": 1500, "db": 0 },
+                { "hz": 3000, "db": 3 },
+                { "hz": 5000, "db": 2.5 },
+                { "hz": 10000, "db": 1 },
+                { "hz": 20000, "db": 0.5 }
+            ]
+        },
+        {
+            // A tilt rather than a shelf at either end: body up, top down,
+            // crossing zero around 1 kHz. What `bass` and `soft` would do
+            // together, done as one gradient so the middle does not develop a
+            // step where the two would have met.
+            "name": "warm",
+            "note": "body up, top down",
+            "group": 2,
+            "anchors": [
+                { "hz": 20, "db": 1 },
+                { "hz": 60, "db": 2 },
+                { "hz": 150, "db": 3.5 },
+                { "hz": 300, "db": 3 },
+                { "hz": 600, "db": 1.5 },
+                { "hz": 1200, "db": 0 },
+                { "hz": 3000, "db": -1 },
+                { "hz": 8000, "db": -2.5 },
+                { "hz": 20000, "db": -3.5 }
+            ]
+        },
+        {
             // Voice. Rumble and room noise below ~100 Hz carry nothing a
             // speaking voice needs, the 200-400 Hz region is where a close mic
             // gets muddy, and 1-4 kHz is where consonants live.
             "name": "speech",
+            "note": "voices and podcasts",
+            "group": 3,
             "anchors": [
                 { "hz": 20, "db": -8 },
                 { "hz": 60, "db": -6 },
@@ -79,17 +178,19 @@ QtObject {
             ]
         },
         {
-            // A low shelf, and only that. It stops by 500 Hz rather than
-            // tilting the whole curve, so it adds weight without taking the
-            // mids down with it.
-            "name": "bass",
+            // The counterpart to `soft`, and deliberately smaller than it. A
+            // lift is more tiring than a cut of the same size, so where `soft`
+            // takes 7 dB off the top this puts 5 back, from a little higher up.
+            "name": "air",
+            "note": "opens the top",
+            "group": 3,
             "anchors": [
-                { "hz": 20, "db": 7 },
-                { "hz": 60, "db": 6.5 },
-                { "hz": 120, "db": 5 },
-                { "hz": 250, "db": 2 },
-                { "hz": 500, "db": 0 },
-                { "hz": 20000, "db": 0 }
+                { "hz": 20, "db": 0 },
+                { "hz": 2000, "db": 0 },
+                { "hz": 4000, "db": 1 },
+                { "hz": 8000, "db": 3 },
+                { "hz": 14000, "db": 4.5 },
+                { "hz": 20000, "db": 5 }
             ]
         },
         {
@@ -97,6 +198,8 @@ QtObject {
             // kHz up rather than a shelf, so it takes the edge off without
             // sounding like a blanket over the speaker.
             "name": "soft",
+            "note": "takes the edge off",
+            "group": 3,
             "anchors": [
                 { "hz": 20, "db": 0 },
                 { "hz": 1000, "db": 0 },
@@ -112,6 +215,11 @@ QtObject {
 
     function nameAt(index) {
         return index >= 0 && index < profiles.list.length ? profiles.list[index].name : "";
+    }
+
+    // What the profile does, for the editor to draw beside the curve.
+    function noteAt(index) {
+        return index >= 0 && index < profiles.list.length ? profiles.list[index].note : "";
     }
 
     // The gain a profile asks for at one frequency.
