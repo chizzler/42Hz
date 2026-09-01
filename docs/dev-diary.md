@@ -15,7 +15,7 @@ Detailed evidence is in `docs/spike-*.md`.
 
 ## 2026-09-01 (seventh pass) — The command line 42Hz stands behind
 
-**Commit:** `PENDING`
+**Commit:** `25c4a7c`
 
 **The decision that made this easy: the derived core is an engine.** Not a
 product 42Hz wraps, and not a feature set to surface. Upstream's command line is
