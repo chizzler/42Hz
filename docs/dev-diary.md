@@ -1,9 +1,11 @@
 # 42Hz dev diary
 
-What happened, newest first, one entry per working session: what changed, what
-was decided and why, what was verified, what stayed open. Commit hashes are
-recorded; because a commit cannot contain its own hash, entries are backfilled
-in a follow-up commit.
+What happened, newest first, one entry per pass: what changed, what was decided
+and why, what was verified, what stayed open. Commit hashes are recorded;
+because a commit cannot contain its own hash, entries are backfilled in a
+follow-up commit. Several passes of one session can land in one commit and then
+share its hash — the field says where to find the change in git, not that each
+entry had a commit to itself.
 
 [`../project.md`](../project.md) records what is *true* about the design.
 Findings graduate there once durable and are not repeated here at length.
@@ -13,7 +15,7 @@ Detailed evidence is in `docs/spike-*.md`.
 
 ## 2026-09-01 (sixth pass) — A preset that kept its highlight
 
-**Commit:** _(backfilled)_
+**Commit:** `4775013`
 
 A preset clicked and then left behind stayed lit. Two causes, both mine, and both
 of a kind this diary has already recorded once.
@@ -64,7 +66,7 @@ selected-state colouring are confirmed by capture.
 
 ## 2026-09-01 (fifth pass) — The preset row says what it is
 
-**Commit:** _(backfilled)_
+**Commit:** `4775013`
 
 Two small things in the editor, both about the row explaining itself.
 
@@ -116,7 +118,7 @@ every size, including the floor where the profile row has wrapped to two lines.
 
 ## 2026-09-01 (fourth pass) — Leaving a bare window is Escape
 
-**Commit:** _(backfilled)_
+**Commit:** `4775013`
 
 In bare chrome the pointer leaving now dismisses the mixer and the editor along
 with the disclosed frame. Bare is the resting state and the panels are things the
@@ -165,7 +167,7 @@ left the mixer exactly where it was.
 
 ## 2026-09-01 (third pass) — The digits go to the profiles
 
-**Commit:** _(backfilled)_
+**Commit:** `4775013`
 
 `f` alone now toggles the chrome, and the number row selects audio profiles.
 
@@ -213,7 +215,7 @@ switching chrome; and the row still inside its two-line budget at 560 and 420 px
 
 ## 2026-09-01 (second pass) — Bare chrome discloses its frame, and the two shells become one
 
-**Commit:** _(backfilled)_
+**Commit:** `4775013`
 
 A borderless window that cannot say what it can do is the same failure as an
 empty window that cannot say why it is empty. Bare chrome now keeps its
@@ -282,7 +284,7 @@ declare the properties framed mode did. One component declares them all.
 
 ## 2026-09-01 — Four more profiles, and a row that can hold them
 
-**Commit:** _(backfilled)_
+**Commit:** `4775013`
 
 The set went from five to nine. Everything else here follows from that: five
 names fit a line and nine do not.
@@ -353,7 +355,7 @@ Verified at 900×520, 560×480, 420×480, 340×480 and 900×230: one line down t
 
 ## 2026-08-31 (night, fifth pass) — The equalizer becomes a curve you pull
 
-**Commit:** _(backfilled)_
+**Commit:** `4775013`
 
 The EQ editor was correct and no fun. Ten bars in a four-row strip under a
 divider, one profile name in a readout, and a cycle key that hid the set it was
