@@ -1112,6 +1112,28 @@ an Omarchy plugin, hook, service activation or configuration edit. The package
 should conflict with EasyEffects so two processors do not compete for the same
 streams and virtual-device role.
 
+`packaging/PKGBUILD` builds it. Two sources go into one package: 42Hz's own
+tracked tree, taken from the checkout at HEAD through `git archive` so the
+package is built from a *commit* rather than from whatever the working tree
+holds, and the pinned Easy Effects release, which makepkg fetches and verifies
+against the same digest `fetch.sh` pins — the two must be bumped together, and
+`prepare()` checks its pinned version against `HZ_UPSTREAM_VERSION` rather than
+trusting it. The payload is seven files: binary, desktop entry, three icons,
+metainfo, licence.
+
+**The package must own no path another package owns.** `ki18n_install(po)` was
+installing 45 `easyeffects.mo` catalogues into `/usr/share/locale`, which are
+never read — `APPLICATION_DOMAIN` is `42hz`, so `KLocalizedString` looks for
+`42hz.mo` — and which land on paths owned by the very package 42Hz conflicts
+with. A declared conflict is not a licence to scatter another project's files.
+
+AppStream metadata validates with no errors. Three `url-not-reachable` warnings
+stand until the repository is published, and `cid-has-number-prefix` is
+permanent and accepted: the ID's final component begins with a digit, which
+AppStream allows and discourages, and see *Identity* for why the alternative is
+worse. Screenshots and a release history need published artefacts; a `<release>`
+entry requires a date, and dating an unreleased version would be inventing one.
+
 As a GPL derivative, 42Hz must retain licensing, copyright and
 source-availability obligations; credit EasyEffects and identify derived
 components; document meaningful modifications and the exact base revision; use

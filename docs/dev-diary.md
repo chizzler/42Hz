@@ -13,6 +13,62 @@ Detailed evidence is in `docs/spike-*.md`.
 
 ---
 
+## 2026-09-01 (eighth pass) — The package, and what it was quietly shipping
+
+**Commit:** `PENDING`
+
+Milestone 5's Arch package. It builds, and the finding is what the install rule
+was doing before anyone looked at the payload.
+
+**42Hz was installing 45 `easyeffects.mo` catalogues.** `ki18n_install(po)`,
+inherited and never questioned, putting Easy Effects' translations into
+`/usr/share/locale/*/LC_MESSAGES/` under Easy Effects' name. Wrong twice: they
+are never read, because `APPLICATION_DOMAIN` is `42hz` and `KLocalizedString`
+looks for `42hz.mo` — the identity pass had already detached them and the diary
+recorded that as "accepted" without noticing the install rule survived — and they
+land on paths owned by the one package 42Hz declares a conflict with, carrying
+translations for the 66 QML files `reduce-deps.py` deletes. **A declared conflict
+is not a licence to scatter another project's files.** The payload is seven files
+now, and the way to find this was to run `DESTDIR=… ninja install` and read the
+list, which nothing had done in five milestones.
+
+The licence was not installed either. The GPL obliges 42Hz to carry it to
+whoever receives the binary and the derived core installs none, so the tracked
+build root does it — 42Hz's own obligation, discharged in 42Hz's own file.
+
+**Where the package's source comes from.** `git archive HEAD` into `$srcdir`,
+not a copy of the working tree: that excludes build trees, the disposable
+`upstream/`, and anything untracked, so the package is built from a commit and
+cannot pick up a hand edit. makepkg fetches and verifies the Easy Effects
+tarball against the same digest `fetch.sh` pins, so `fetch.sh` is deliberately
+not run during a package build. The digest now lives in two places and they must
+move together; `prepare()` at least checks its `_upstream_ver` against
+`HZ_UPSTREAM_VERSION` and refuses rather than failing later with "No patched
+upstream tree".
+
+**AppStream had more to say than expected.** `appstreamcli validate` wanted a
+developer block and a content rating — an app with no objectionable content
+declares that with an *empty* OARS element, and omitting it leaves software
+centres showing "unknown". Both added. A `<releases>` block was the mistake in
+between: added, and it turned an info into a hard error, because a release entry
+requires a date and 0.7.0 has none. Dropped rather than dated — **inventing a
+release date to satisfy a validator is lying to it.** Three `url-not-reachable`
+warnings remain and are the repository not being published yet.
+`cid-has-number-prefix` is permanent and accepted, and *Identity* already argued
+it.
+
+Verified: `makepkg -f` from a clean checkout produces `42hz-0.7.0-1-x86_64.pkg.tar.zst`
+at 2.4M; the packaged binary reports `42hz 0.7.0`; `desktop-file-validate` passes;
+`appstreamcli validate` has no errors. `namcap` is not installed on this machine,
+so the package has not been checked for the things namcap alone catches.
+
+### Still open
+
+The package has not been installed, and 42Hz has not been launched from it.
+`--help` still reports "Global audio effects".
+
+---
+
 ## 2026-09-01 (seventh pass) — The command line 42Hz stands behind
 
 **Commit:** `25c4a7c`

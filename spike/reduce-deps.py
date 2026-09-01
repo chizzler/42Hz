@@ -757,8 +757,9 @@ print(f"  renamed 4 icons -> {APP_ID}*.svg  (artwork still upstream's; milestone
 
 # Upstream's metainfo is 65K of Easy Effects release notes. Shipping it under
 # the 42Hz application ID would be a false claim about what this program is,
-# so it is replaced with a minimal honest stub. Full appstream data, including
-# screenshots and a real release history, is milestone 6.
+# so it is replaced with a minimal honest stub carrying only what is true.
+# It validates against appstreamcli with no errors; screenshots and a real
+# release history need published artefacts and are milestone 6.
 (contents / "com.github.wwmm.easyeffects.metainfo.xml.in").unlink()
 (contents / f"{APP_ID}.metainfo.xml.in").write_text(f'''<?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop-application">
@@ -781,7 +782,22 @@ print(f"  renamed 4 icons -> {APP_ID}*.svg  (artwork still upstream's; milestone
     </p>
   </description>
   <launchable type="desktop-id">@APPLICATION_ID@.desktop</launchable>
+
+  <developer id="{VENDOR}">
+    <name>{APP_NAME} contributors</name>
+  </developer>
+
+  <!-- No objectionable content of any kind: an empty OARS block is how that is
+       stated. Omitting it leaves software centres showing "unknown". -->
+  <content_rating type="oars-1.1"/>
+
+  <!-- No <releases>: an entry requires a date, and dating an unreleased
+       version would be inventing one. It arrives with the first published
+       release, in milestone 6. -->
+
   <url type="homepage">{HOMEPAGE}</url>
+  <url type="bugtracker">{HOMEPAGE}/issues</url>
+  <url type="vcs-browser">{HOMEPAGE}</url>
 </component>
 ''')
 print(f"  replaced metainfo -> {APP_ID}.metainfo.xml.in (stub; upstream release notes dropped)")
