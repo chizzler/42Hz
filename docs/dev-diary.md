@@ -15,7 +15,7 @@ Detailed evidence is in `docs/spike-*.md`.
 
 ## 2026-09-01 (eighth pass) — The package, and what it was quietly shipping
 
-**Commit:** `PENDING`
+**Commit:** `4cd24f8`
 
 Milestone 5's Arch package. It builds, and the finding is what the install rule
 was doing before anyone looked at the payload.

@@ -13,3 +13,8 @@ upstream/
 
 # Responsive sweep captures
 .sweep/
+
+# makepkg working directories and built packages
+packaging/src/
+packaging/pkg/
+packaging/*.pkg.tar.zst
