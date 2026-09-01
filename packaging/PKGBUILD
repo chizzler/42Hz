@@ -1,0 +1,98 @@
+# Maintainer: Andrew Milne <quick.wave1326@fastmail.com>
+#
+# 42Hz is a patch-on-tarball derivative of Easy Effects: the derived core is
+# fetched from upstream and patched at build time, never vendored. Two sources
+# therefore go into one package -- 42Hz's own tracked tree, and the pinned
+# Easy Effects release that spike/reduce-deps.py rewrites.
+#
+# Build it from a checkout:   cd packaging && makepkg -si
+
+pkgname=42hz
+pkgver=0.7.0
+pkgrel=1
+pkgdesc='Ultra-minimal, Omarchy-native control surface for PipeWire audio'
+arch=('x86_64')
+url='https://github.com/chizzler/42Hz'
+license=('GPL-3.0-or-later')
+
+# The Easy Effects release the core is derived from. MUST match HZ_UPSTREAM_VERSION
+# in the top-level CMakeLists.txt; prepare() checks that rather than trusting it.
+_upstream_ver=8.2.8
+
+depends=(
+  # Toolkit and KDE Frameworks the frontend and core are built against.
+  'qt6-base' 'qt6-declarative' 'kconfig' 'kcoreaddons' 'ki18n'
+  # Session, DSP hosting and analysis.
+  'libpipewire' 'lilv' 'fftw' 'gsl' 'cblas'
+  # DSP the core links directly.
+  'libebur128' 'libbs2b' 'libmysofa' 'libsndfile' 'rnnoise' 'soundtouch'
+  'speexdsp' 'webrtc-audio-processing' 'zita-convolver'
+  # Runtime support.
+  'abseil-cpp' 'onetbb' 'libglvnd'
+  # The equalizer's LV2 provider. Not a link-time dependency -- the core loads
+  # http://lsp-plug.in/plugins/lv2/para_equalizer_x32_lr through lilv at
+  # runtime -- but 42Hz ships an equalizer, so it is not optional.
+  'lsp-plugins-lv2'
+  # The audio service itself.
+  'pipewire'
+)
+
+makedepends=('cmake' 'ninja' 'extra-cmake-modules' 'python' 'git')
+
+# Two audio processors competing for the same streams and virtual-device role
+# is not a supported arrangement, and 42Hz reassigns every inherited identity
+# precisely so the conflict is the only thing left to declare.
+conflicts=('easyeffects')
+
+# Upstream's auto-generated archive. makepkg does the fetching and verifying
+# that spike/fetch.sh does for a development tree; the digest below is the same
+# TARBALL_SHA256 pinned there, and the two must be bumped together.
+source=("easyeffects-${_upstream_ver}.tar.gz::https://codeload.github.com/wwmm/easyeffects/tar.gz/refs/tags/v${_upstream_ver}")
+sha256sums=('0e241ad32a0147d180f9dd35181c8eea11e7d32309dda9b4b70b6b472189e45e')
+
+prepare() {
+  # 42Hz's own source comes from the checkout this PKGBUILD lives in, taken at
+  # HEAD through git archive rather than copied: that excludes build trees, the
+  # disposable upstream/ directory and anything untracked, so the package is
+  # built from a commit rather than from whatever the working tree happens to
+  # hold.
+  rm -rf "$srcdir/$pkgname"
+  mkdir -p "$srcdir/$pkgname"
+  git -C "$startdir/.." archive --format=tar HEAD | tar -x -C "$srcdir/$pkgname"
+
+  cd "$srcdir/$pkgname"
+
+  # The build root resolves upstream/easyeffects-<ver> relative to itself, and
+  # names the version it expects. Disagreement here means _upstream_ver above
+  # has drifted from the tree, which would otherwise surface as a confusing
+  # "No patched upstream tree" much later.
+  local declared
+  declared=$(sed -n 's/^set(HZ_UPSTREAM_VERSION \(.*\))$/\1/p' CMakeLists.txt)
+  if [[ $declared != "$_upstream_ver" ]]; then
+    echo "error: PKGBUILD pins Easy Effects $_upstream_ver, CMakeLists.txt wants $declared" >&2
+    return 1
+  fi
+
+  mkdir -p upstream
+  mv "$srcdir/easyeffects-${_upstream_ver}" upstream/
+
+  # The complete patch inventory: dependency reduction and identity
+  # reassignment. spike/fetch.sh is deliberately not run -- makepkg has already
+  # acquired and verified the same tarball.
+  ./spike/reduce-deps.py "upstream/easyeffects-${_upstream_ver}"
+}
+
+build() {
+  cd "$srcdir/$pkgname"
+  cmake -B build -S . -G Ninja \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX=/usr \
+    -DCMAKE_INSTALL_LIBEXECDIR=lib \
+    -DBUILD_TESTING=OFF
+  cmake --build build
+}
+
+package() {
+  cd "$srcdir/$pkgname"
+  DESTDIR="$pkgdir" cmake --install build
+}

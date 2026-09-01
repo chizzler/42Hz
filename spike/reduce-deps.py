@@ -180,6 +180,20 @@ def top_identity(s):
     s = sub(s, 'set(APPLICATION_NAME "Easy Effects")',         f'set(APPLICATION_NAME "{APP_NAME}")')
     return s
 
+# ---- top-level CMakeLists: do not install upstream's translations ----
+#
+# ki18n_install(po) installs 45 easyeffects.mo catalogues into
+# /usr/share/locale/*/LC_MESSAGES/, which is wrong twice over. They are never
+# read: APPLICATION_DOMAIN is "42hz" above, so KLocalizedString looks for
+# 42hz.mo. And they are named for, and land on paths owned by, the easyeffects
+# package -- a file-level collision with the very package 42Hz declares a
+# conflict with, carrying translations for the 66 QML files this script deletes.
+#
+# 42Hz ships no catalogues of its own yet. When it does, this becomes an install
+# of 42Hz's own po/ rather than a removal.
+def top_no_po(s):
+    return sub(s, "ki18n_install(po)\n", "")
+
 # ---- top-level CMakeLists: 42Hz's version, and the core's kept beside it ----
 #
 # Upstream's project() sets PROJECT_VERSION to the Easy Effects release, and
@@ -686,6 +700,7 @@ edit("src/main.cpp", main_deps)
 # --- phase 2 edits ---
 edit("CMakeLists.txt", top_identity)
 edit("CMakeLists.txt", top_version)
+edit("CMakeLists.txt", top_no_po)
 edit("src/config.h.in", config_version)
 edit("src/CMakeLists.txt", src_identity)
 edit("src/tags_app.hpp", tags_app)

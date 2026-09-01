@@ -38,3 +38,9 @@ set_target_properties(easyeffects PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BI
 # core's target -- see frontend/CMakeLists.txt for why it cannot be merged into
 # the core's own module.
 add_subdirectory(frontend)
+
+# The GPL obliges 42Hz to carry its licence to whoever receives the binary, and
+# an Arch package is expected to place it here. The derived core installs no
+# licence of its own.
+include(GNUInstallDirs)
+install(FILES LICENSE DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/licenses/42hz)
