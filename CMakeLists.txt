@@ -13,6 +13,11 @@ cmake_minimum_required(VERSION 3.28)
 
 project(42hz LANGUAGES CXX C)
 
+# 42Hz's own version, distinct from the core it is derived from. Bump it here
+# and nowhere else: reduce-deps.py wires this into the patched tree's project()
+# call, so it reaches --version, KAboutData and the AppStream metadata.
+set(HZ_VERSION 0.7.0)
+
 set(HZ_UPSTREAM_VERSION 8.2.8)
 set(HZ_UPSTREAM_DIR upstream/easyeffects-${HZ_UPSTREAM_VERSION})
 

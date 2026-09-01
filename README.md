@@ -80,6 +80,22 @@ in the theme's accent. Palette, typography
 and spectrum ramp are all resolved from Omarchy state and follow a theme change
 without a restart.
 
+## Command line
+
+42Hz is driven from its window. The command line carries only what a keybinding
+or a wedged config needs:
+
+```
+-b, --bypass <1|2|3>   Global bypass: 1 enable, 2 disable, 3 report.
+--bypass-toggle        Toggle it -- what a Hyprland binding calls.
+-r, --reset            Reset stored settings to their defaults.
+--debug                Enable debug messages.
+```
+
+The derived core inherits a much larger command line from EasyEffects — service
+mode, preset load and query, window hiding. None of it is registered: 42Hz is not
+a daemon, and preset files are not in this release.
+
 ## Alongside Omarchy's speaker tuning
 
 Omarchy ships speaker tunings as native PipeWire filter-chain sinks, not as

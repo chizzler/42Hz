@@ -1070,13 +1070,39 @@ shutdown — specifically, killing the process while the default route points *a
 
 ## Command surface
 
-Not yet designed. The core carries upstream's `QCommandLineParser` surface — quit,
-reset, hide-window, global bypass and its toggle, preset load and query, service
-mode, `--debug` — renamed but otherwise inherited. Several name features 42Hz has
-not committed to, so this stays empty of promises until milestone 5.
+**The derived core is an engine, and its command line is not 42Hz's.** Upstream's
+`QCommandLineParser` surface is a product surface built on top of the engine;
+42Hz inherits none of it by default. Four options are registered, and they are
+the ones 42Hz stands behind:
 
-`--debug` is load-bearing for development now, for the reason under *Three traps
-in the base*.
+- `--debug` — load-bearing for development, for the reason under *Three traps in
+  the base*.
+- `-b, --bypass <1|2|3>` and `--bypass-toggle` — 42Hz has a global bypass, and
+  this is the flag a Hyprland binding calls.
+- `-r, --reset` — the escape hatch when stored settings are wedged.
+
+`--help`, `--version`, `--author`, `--license` and `--desktopfile` come from
+`KAboutData::setupCommandLine()`.
+
+Everything else upstream offers is simply not registered. Service mode, `--quit`
+and `--hide-window` describe a daemon 42Hz commits to not being; the four preset
+options operate on preset *files*, which are out of the first release, so they
+address a store that stays empty. A future `--profile <name>` against the shipped
+audio profiles would be 42Hz's own flag to design, not one of these to keep.
+
+**Removing an option from `addOptions()` is the whole mechanism**, and nothing is
+torn out of the engine. `isSet()` on a name that was never registered returns
+false with no warning and no assert, so every block in `process_events()` guarding
+a removed option is unreachable rather than broken, and `process()` answers a
+removed flag with `Unknown option` and exit 1. Restoring one is re-adding its line.
+
+**Version.** 42Hz carries its own, distinct from the core it derives from —
+`HZ_VERSION` in the tracked top-level `CMakeLists.txt`, wired into the patched
+tree's `project()` call, so one bump reaches `--version`, `KAboutData` and the
+AppStream metadata. Upstream's `project()` would otherwise make `--version` report
+the Easy Effects release under 42Hz's name. The base revision stays reachable from
+the binary as a separate `UPSTREAM_VERSION` define, which the attribution
+obligations want and the startup banner prints.
 
 ## Packaging and upstream
 

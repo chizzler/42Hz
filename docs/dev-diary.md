@@ -13,6 +13,77 @@ Detailed evidence is in `docs/spike-*.md`.
 
 ---
 
+## 2026-09-01 (seventh pass) — The command line 42Hz stands behind
+
+**Commit:** `PENDING`
+
+**The decision that made this easy: the derived core is an engine.** Not a
+product 42Hz wraps, and not a feature set to surface. Upstream's command line is
+a product surface built on top of the engine, so 42Hz inherits none of it by
+default and registers only what it stands behind. Twelve options to four —
+`--debug`, `--bypass`, `--bypass-toggle`, `--reset`.
+
+What went, and why it was not a judgement call about each flag: `--quit`,
+`--hide-window`, `--service-mode` and `--gapplication-service` describe a daemon
+this project commits to not being, and `-l`, `-p`, `-a`, `-s` address preset
+*files*, which are out of the first release — so `-l` always failed and `-p`
+always printed "no presets". They were advertised in `--help` regardless.
+`--gapplication-service` was the sharpest of them: a deprecation notice for a
+GTK-era transition 42Hz never had.
+
+**Removing an option from `addOptions()` is the whole change**, and nothing came
+out of the engine. Verified against Qt 6.11.2 with a throwaway program rather
+than assumed, because the whole approach rested on it: `isSet()` on a name that
+was never registered returns false, with no warning and no assert. So
+`process_events()` is byte-for-byte upstream's and every block guarding a removed
+option is unreachable rather than broken. `process()` answers a removed flag with
+`Unknown option 'load-preset'.` and exit 1, which is the honest reply. Restoring
+one is re-adding its line.
+
+**The trap this leaves, found by asking who *passes* these flags rather than who
+defines them.** `autostart.cpp` writes an autostart entry reading
+`Exec=42hz --hide-window [--service-mode]`, and hands the same pair to the
+background portal — a launcher these removals turn into `Unknown option` at
+login. Unreachable today: both paths fire only on `autostartOnLoginChanged` /
+`enableServiceModeChanged`, both keys default false, and 42Hz's QML exposes
+neither. Left as dead code with the warning recorded in the patch inventory
+rather than edited, since editing it would be changing behaviour nothing can
+reach. **A flag removal is not finished when the parser is done — grep for who
+launches you.**
+
+**`--version` was reporting `42hz 8.2.8`**: the core's version wearing 42Hz's
+name, because upstream's `project()` sets `PROJECT_VERSION` and `config.h.in`
+bakes it in. 42Hz is **0.7.0** now — milestones 1 to 4 done and the remaining 0.3
+mapping onto packaging and the release candidate.
+
+The number lives in the *tracked* top-level `CMakeLists.txt`, not in the patch
+script: it is 42Hz's own fact and changes on 42Hz's schedule, while
+`reduce-deps.py` is the delta against upstream. The parent sets `HZ_VERSION`
+before `add_subdirectory()`, so it is in scope by the time the patched
+`project()` runs — one bump reaches `--version`, `KAboutData` and AppStream.
+
+Two things that fell out of doing it that way. Replacing `PROJECT_VERSION` would
+have erased the base revision from the binary, so `UPSTREAM_VERSION` now carries
+`8.2.8` separately and the startup banner prints both — the attribution
+obligation wants that reachable. And `project(... VERSION ${HZ_VERSION})` would
+silently produce an empty version if the tree were ever configured standalone, so
+the patch emits a `FATAL_ERROR` above it; tested by configuring `upstream/`
+directly. Upstream's `easyffects` typo went with the banner rewrite, having been
+the first word of every 42Hz debug log.
+
+Verified on a clean `rm -rf build` cycle: fetch, patch, configure, build,
+`--help` and `--version`.
+
+**Not verified here.** The binary was not launched — the change is confined to
+option registration, and a live run creates `42hz_sink` on the working desktop.
+
+### Still open
+
+`--help` reports "Global audio effects", Easy Effects' tagline, from `KAboutData`
+in `main.cpp`. The metainfo stub already carries 42Hz's own summary.
+
+---
+
 ## 2026-09-01 (sixth pass) — A preset that kept its highlight
 
 **Commit:** `4775013`

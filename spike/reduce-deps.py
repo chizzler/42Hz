@@ -180,6 +180,49 @@ def top_identity(s):
     s = sub(s, 'set(APPLICATION_NAME "Easy Effects")',         f'set(APPLICATION_NAME "{APP_NAME}")')
     return s
 
+# ---- top-level CMakeLists: 42Hz's version, and the core's kept beside it ----
+#
+# Upstream's project() sets PROJECT_VERSION to the Easy Effects release, and
+# that value is what config.h.in bakes into PROJECT_VERSION and what KAboutData
+# reports -- so an unpatched 42Hz answers `--version` with "42hz 8.2.8", which
+# is the core's version wearing 42Hz's name.
+#
+# The number itself lives in the TRACKED top-level CMakeLists.txt (HZ_VERSION),
+# not here: it is 42Hz's own fact and changes on 42Hz's schedule, while this
+# script is the delta against upstream. The parent sets it before
+# add_subdirectory(), so it is in scope by the time this project() runs.
+#
+# UPSTREAM_VERSION keeps the base revision reachable from the binary, which the
+# GPL attribution obligations want and the debug line below prints.
+def top_version(s):
+    return sub(s, "project(easyeffects VERSION 8.2.8  LANGUAGES CXX C)",
+               """if(NOT DEFINED HZ_VERSION)
+    message(FATAL_ERROR
+        "HZ_VERSION is not set. Build from the 42Hz repository root, which "
+        "adds this tree as a subdirectory -- not from this tree directly.")
+endif()
+
+project(easyeffects VERSION ${HZ_VERSION} LANGUAGES CXX C)
+set(UPSTREAM_VERSION "${HZ_UPSTREAM_VERSION}")""")
+
+# ---- config.h.in: expose the base revision to C++ ----
+def config_version(s):
+    return sub(s, '#define PROJECT_VERSION "@PROJECT_VERSION@"',
+                  '#define PROJECT_VERSION "@PROJECT_VERSION@"\n'
+                  '\n'
+                  '// The Easy Effects release this core is derived from, kept\n'
+                  '// distinct from PROJECT_VERSION, which is 42Hz\'s own.\n'
+                  '#define UPSTREAM_VERSION "@UPSTREAM_VERSION@"')
+
+# ---- main.cpp: the startup banner names both versions ----
+#
+# Also fixes upstream's "easyffects" typo, which would otherwise be the first
+# word in every 42Hz debug log.
+def main_version(s):
+    return sub(s,
+        'util::debug(std::format("easyffects version: {}.{}.{}", VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH));',
+        f'util::debug(std::format("{APP_NAME} version: {{}} (Easy Effects core {{}})", PROJECT_VERSION, UPSTREAM_VERSION));')
+
 # ---- src/CMakeLists: rename the produced binary ----
 #
 # The CMake TARGET stays `easyeffects`: it is referenced ~30 times in this file
@@ -232,12 +275,12 @@ def main_identity(s):
     s = sub(s, '"https://github.com/wwmm/easyeffects"', f'"{HOMEPAGE}"')
     return s
 
-# ---- command_line_parser.cpp: logging rules and the usage example ----
+# ---- command_line_parser.cpp: logging rules ----
+#
+# The usage example this used to rename ("easyeffects -l music") belongs to
+# --load-preset, which cli_text below removes from the parser.
 def cli(s):
-    s = sub(s, '"easyeffects.debug=true"', f'"{APP_SLUG}.debug=true"')
-    s = sub(s, 'Load a preset. Example: easyeffects -l music',
-               f'Load a preset. Example: {APP_SLUG} -l music')
-    return s
+    return sub(s, '"easyeffects.debug=true"', f'"{APP_SLUG}.debug=true"')
 
 # ---- plugin_base.cpp: the DSP filter node prefix and node groups ----
 def plugin_base(s):
@@ -327,13 +370,78 @@ def about(s):
     return sub(s, 'i18n("© 2017-2026 Easy Effects Team")',
                   f'i18n("© 2017-2026 Wellington Wallace (Easy Effects) · {APP_NAME} frontend © 2026 {APP_NAME} contributors")')
 
-# ---- command_line_parser.cpp: user-visible help text ----
+# ---- command_line_parser.cpp: the options 42Hz actually offers ----
+#
+# The derived core is an ENGINE. Easy Effects' command line is a product
+# surface built on top of it, and 42Hz inherits none of it by default: the
+# options below are the ones 42Hz stands behind, and the rest are simply not
+# registered.
+#
+# Removing an option from addOptions() is the whole change. process_events()
+# is left exactly as upstream wrote it:
+#
+#   * QCommandLineParser::isSet() on a name that was never registered returns
+#     false, with no warning and no assert -- verified against Qt 6.11.2 -- so
+#     every block guarding a removed option is unreachable rather than broken.
+#   * process() rejects a removed option with "Unknown option 'load-preset'."
+#     and exits 1, which is the honest answer.
+#
+# Nothing is torn out of the engine. Restoring an option is re-adding its line.
+#
+# Dropped, and why:
+#
+#   -q/--quit, -w/--hide-window,     Service mode is a daemon, and 42Hz commits
+#   --service-mode,                  to not being one (see project.md, "Goal
+#   --gapplication-service           and principles"). --gapplication-service
+#                                    is additionally a deprecation notice for a
+#                                    GTK-era transition 42Hz never had.
+#
+#   -l/--load-preset, -p/--presets,  Preset FILES are out of the first release.
+#   -a/--last-loaded-preset,         42Hz's audio profiles are held in the
+#   -s/--last-loaded-presets         frontend with no file and no directory, so
+#                                    these operate on a store that stays empty:
+#                                    -l always fails, -p prints "no presets".
+#                                    A future --profile <name> against the
+#                                    shipped profiles is 42Hz's own flag to
+#                                    design, not this one to keep.
+#
+# Kept: --debug (load-bearing for development), --bypass and --bypass-toggle
+# (42Hz has a global bypass, and this is the flag a Hyprland binding calls),
+# and --reset (the escape hatch when stored settings are wedged).
+#
+# --help, --version, --author, --license and --desktopfile are added by
+# KAboutData::setupCommandLine() above, not here.
+#
+# ONE LATENT TRAP, left in place. autostart.cpp writes an autostart entry
+# reading `Exec=42hz --hide-window [--service-mode]`, and passes the same pair
+# to the background portal -- a launcher that these removals turn into "Unknown
+# option 'hide-window'." at login. It is unreachable today: both paths fire only
+# on autostartOnLoginChanged / enableServiceModeChanged, both DB keys default to
+# false, and 42Hz's QML exposes no control for either. Anything that later gives
+# 42Hz an autostart or service toggle must fix that Exec line in the same change.
 def cli_text(s):
     s = sub(s, 'parser->setApplicationDescription("Easy Effects")',
                f'parser->setApplicationDescription("{APP_NAME}")')
-    s = sub(s, 'i18n("Quit Easy Effects. Useful when running in service mode.")',
-               f'i18n("Quit {APP_NAME}. Useful when running in service mode.")')
-    s = sub(s, 'i18n("Reset Easy Effects.")', f'i18n("Reset {APP_NAME}.")')
+    s = sub(s, """{{{"q", "quit"}, i18n("Quit Easy Effects. Useful when running in service mode.")},
+       {{"r", "reset"}, i18n("Reset Easy Effects.")},
+       {{"w", "hide-window"}, i18n("Hide the window.")},
+       {{"b", "bypass"},
+        i18n("Global bypass. 1 to enable, 2 to disable and 3 to get the current state."),
+        i18n("bypass-state")},
+       {"bypass-toggle", i18n("Toggle the state of the global bypass.")},
+       {{"l", "load-preset"}, i18n("Load a preset. Example: easyeffects -l music"), i18n("preset-name")},
+       {{"p", "presets"}, i18n("Show available presets.")},
+       {{"a", "last-loaded-preset"}, i18n("Get the last loaded input/output preset."), i18n("preset-type")},
+       {{"s", "last-loaded-presets"}, i18n("Get the last loaded input and output presets.")},
+       {"gapplication-service", i18n("Deprecated. Use --service-mode instead.")},
+       {"service-mode", i18n("Start the application with service mode turned on.")},
+       {"debug", i18n("Enable debug messages.")}}""",
+        """{{{"r", "reset"}, i18n("Reset %s to its stored defaults.")},
+       {{"b", "bypass"},
+        i18n("Global bypass. 1 to enable, 2 to disable and 3 to get the current state."),
+        i18n("bypass-state")},
+       {"bypass-toggle", i18n("Toggle the state of the global bypass.")},
+       {"debug", i18n("Enable debug messages.")}}""" % APP_NAME)
     return s
 
 # ---- autostart.cpp: the xdg portal background-permission identity ----
@@ -577,12 +685,15 @@ edit("src/main.cpp", main_deps)
 
 # --- phase 2 edits ---
 edit("CMakeLists.txt", top_identity)
+edit("CMakeLists.txt", top_version)
+edit("src/config.h.in", config_version)
 edit("src/CMakeLists.txt", src_identity)
 edit("src/tags_app.hpp", tags_app)
 edit("src/tags_pipewire.hpp", tags_pipewire)
 edit("src/db_manager.cpp", db_manager)
 edit("src/util.cpp", util)
 edit("src/main.cpp", main_identity)
+edit("src/main.cpp", main_version)
 edit("src/command_line_parser.cpp", cli)
 edit("src/plugin_base.cpp", plugin_base)
 edit("src/pw_node_manager.cpp", pw_node_manager_cpp)
