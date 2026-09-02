@@ -15,7 +15,7 @@ Detailed evidence is in `docs/spike-*.md`.
 
 ## 2026-09-02 — The report, and a harness that lied once
 
-**Commit:** `PENDING`
+**Commit:** `0e68193`
 
 Milestone 5's diagnostics and its recovery tests. Also the tagline, which had
 been open in two entries.
