@@ -51,9 +51,18 @@ APP_ID      = f"{VENDOR}.{APP_NAME}"    # reverse-DNS application ID
 APP_PATH    = "/" + APP_ID.replace(".", "/")
 HOMEPAGE    = "https://github.com/chizzler/42Hz"
 
+SUMMARY     = "Minimal spectrum-first control surface for PipeWire audio"
+                                        # one sentence, and the SAME one in the
+                                        # AppStream metadata and in --help
+
 NODE_PREFIX = "hz_"                     # own DSP filter nodes: hz_soe_*, hz_sie_*
 SINK_NAME   = f"{APP_SLUG}_sink"        # virtual sink exposed to PipeWire
 SOURCE_NAME = f"{APP_SLUG}_source"      # virtual source exposed to PipeWire
+
+# The equalizer's LV2 provider. Upstream's constant, not a 42Hz name -- it is
+# repeated here because the diagnostics report has to name the plugin it looked
+# for, and a check below fails the patch if upstream ever moves it.
+EQ_URI      = "http://lsp-plug.in/plugins/lv2/para_equalizer_x32_lr"
 
 if len(sys.argv) != 2:
     sys.exit(f"usage: {sys.argv[0]} <extracted-easyeffects-tree>")
@@ -71,6 +80,14 @@ for marker in ("CMakeLists.txt", "src/main.cpp", "src/effects_base.cpp"):
 # fail clearly instead and let the caller re-extract.
 if not (root / "src/kcolor_manager.cpp").is_file():
     sys.exit(f"error: {root} is already patched -- re-extract the tree first")
+
+# The diagnostics report names the plugin it looked for, and gets the URI from
+# EQ_URI above rather than from the core. If upstream ever moves the plugin,
+# the report would look for one thing while the equalizer loads another --
+# a diagnostic that lies. Fail the patch instead.
+if EQ_URI not in (root / "src/equalizer.cpp").read_text():
+    sys.exit(f"error: {EQ_URI} is no longer the equalizer's plugin URI -- "
+             f"update EQ_URI, and check what the equalizer loads now")
 
 print(f"patching {root}")
 
@@ -380,9 +397,15 @@ def test_signals(s):
 # derivative work under GPL-3.0-or-later; dropping the original copyright
 # notice would be both wrong and a licence violation. The named-author entries
 # immediately below this line are left exactly as upstream wrote them.
+# The short description beside it is a different matter: it is not attribution
+# but a claim about what THIS program is, printed by --help and shown in the
+# about box, and "Global audio effects" describes Easy Effects. It is 42Hz's
+# own sentence, and the same one the AppStream metadata carries.
 def about(s):
-    return sub(s, 'i18n("© 2017-2026 Easy Effects Team")',
-                  f'i18n("© 2017-2026 Wellington Wallace (Easy Effects) · {APP_NAME} frontend © 2026 {APP_NAME} contributors")')
+    s = sub(s, 'i18n("© 2017-2026 Easy Effects Team")',
+               f'i18n("© 2017-2026 Wellington Wallace (Easy Effects) · {APP_NAME} frontend © 2026 {APP_NAME} contributors")')
+    s = sub(s, 'i18n("Global audio effects")', f'i18n("{SUMMARY}")')
+    return s
 
 # ---- command_line_parser.cpp: the options 42Hz actually offers ----
 #
@@ -423,6 +446,11 @@ def about(s):
 # (42Hz has a global bypass, and this is the flag a Hyprland binding calls),
 # and --reset (the escape hatch when stored settings are wedged).
 #
+# Added, and 42Hz's own rather than inherited: --diagnostics. It is registered
+# here so that --help lists it and an unknown-option error stays coherent, but
+# it is NOT handled in process_events() -- see main_diagnostics() below for why
+# it has to be answered before the single-instance branch.
+#
 # --help, --version, --author, --license and --desktopfile are added by
 # KAboutData::setupCommandLine() above, not here.
 #
@@ -455,7 +483,56 @@ def cli_text(s):
         i18n("Global bypass. 1 to enable, 2 to disable and 3 to get the current state."),
         i18n("bypass-state")},
        {"bypass-toggle", i18n("Toggle the state of the global bypass.")},
+       {"diagnostics", i18n("Report the versions, the capabilities and what is in the graph, then exit.")},
        {"debug", i18n("Enable debug messages.")}}""" % APP_NAME)
+    return s
+
+# ---- main.cpp: --diagnostics, answered before anything is built ----
+#
+# 42Hz's own flag, and the only one that is not routed through
+# CommandLineParser::process_events(). Three constraints pin it here:
+#
+#   * BEFORE the single-instance branch. A second invocation forwards its
+#     command to the running instance over the local socket, and a running
+#     instance would print the report on ITS stdout, not the caller's. The
+#     report is a read-only probe, so there is nothing to forward.
+#
+#   * AFTER util::get_lock_file(). Whether another instance holds the lock is
+#     one of the things the report states, and this is where that is known.
+#
+#   * BEFORE CoreServices. Constructing pw::Manager loads 42Hz's virtual
+#     devices and then spins until they appear -- a diagnostic that changes
+#     the routing it was asked about -- and calls util::fatal when the service
+#     is unreachable, which is exactly the case the report exists to explain.
+#     hz::report() opens its own read-only connection instead.
+#
+# Matched on the raw argument rather than through the parser because the parser
+# has not run yet at this point: process() is called separately in each branch
+# of the instance check, and this needs to answer identically in both.
+#
+# Every name handed in comes from the identity table at the top of this script.
+# frontend/diagnostics.* is 42Hz's own tracked source; this include is the one
+# place the derived core reaches into it.
+def main_diagnostics(s):
+    s = sub(s, '#include "db_manager.hpp"',
+               '#include "db_manager.hpp"\n#include "diagnostics.hpp"')
+    s = sub(s, """  bool show_window = true;
+
+  if (!lockFile->isLocked()) {""",
+            f"""  bool show_window = true;
+
+  if (app.arguments().contains(QStringLiteral("--diagnostics"))) {{
+    return hz::report({{.version = QString::fromUtf8(PROJECT_VERSION),
+                       .upstreamVersion = QString::fromUtf8(UPSTREAM_VERSION),
+                       .applicationId = QString::fromUtf8(APPLICATION_ID),
+                       .sinkName = QStringLiteral("{SINK_NAME}"),
+                       .sourceName = QStringLiteral("{SOURCE_NAME}"),
+                       .nodePrefix = QStringLiteral("{NODE_PREFIX}"),
+                       .equalizerUri = QStringLiteral("{EQ_URI}"),
+                       .instanceRunning = !lockFile->isLocked()}});
+  }}
+
+  if (!lockFile->isLocked()) {{""")
     return s
 
 # ---- autostart.cpp: the xdg portal background-permission identity ----
@@ -732,6 +809,7 @@ edit("src/tags_local_server.hpp", local_server)
 edit("src/test_signals.cpp", test_signals)
 edit("src/main.cpp", about)
 edit("src/command_line_parser.cpp", cli_text)
+edit("src/main.cpp", main_diagnostics)
 edit("src/autostart.cpp", autostart_portal)
 
 # --- removals ---
@@ -765,7 +843,7 @@ print(f"  renamed 4 icons -> {APP_ID}*.svg  (artwork still upstream's; milestone
 <component type="desktop-application">
   <id>@APPLICATION_ID@.desktop</id>
   <name>@APPLICATION_NAME@</name>
-  <summary>Minimal spectrum-first control surface for PipeWire audio</summary>
+  <summary>{SUMMARY}</summary>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>GPL-3.0-or-later</project_license>
   <description>

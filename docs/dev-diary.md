@@ -13,6 +13,93 @@ Detailed evidence is in `docs/spike-*.md`.
 
 ---
 
+## 2026-09-02 — The report, and a harness that lied once
+
+**Commit:** `PENDING`
+
+Milestone 5's diagnostics and its recovery tests. Also the tagline, which had
+been open in two entries.
+
+**`--diagnostics` builds no graph, and that decision made the rest easy.** The
+obvious implementation asks the core, and the core cannot be asked: `pw::Manager`'s
+constructor loads 42Hz's virtual devices and then spins until they appear, so a
+diagnostic would change the routing it was asked about — and calls `util::fatal`
+when the service is unreachable, which is the one case the report exists to
+explain. **A diagnostic that dies when the thing is broken is not a diagnostic.**
+So the report opens its own read-only connection: context, registry, one
+roundtrip, a two-second timeout because a service can accept a connection and
+then answer nothing.
+
+That put it in an unusual place in `main()`, and all three constraints are real:
+after the lock file, because whether another instance holds it is *reported*;
+before the single-instance branch, because forwarding it to a running instance
+would print the report on that process's stdout, not the caller's; and before
+`CoreServices`. It is registered in `addOptions()` so `--help` lists it and
+unknown-option handling stays coherent, but `process_events()` runs too late to
+be where it is handled.
+
+**It names nothing.** Every identity string it prints is handed in by the
+patched `main.cpp` from the table in `reduce-deps.py`, so the frontend keeps the
+project's rule that changing a name in that table is the whole rename. The
+equalizer's LV2 URI is not a 42Hz name but upstream's constant, so the script
+now checks that the URI it hands over is still the one `equalizer.cpp` loads and
+refuses to patch if it is not.
+
+**The tagline.** `--help` had been reporting "Global audio effects" since the
+identity pass. Not attribution — a claim about what this program *is*, and it
+described Easy Effects. Now one `SUMMARY` in the patch script, reaching both
+`--help` and the AppStream metadata.
+
+**Bypass reaches a running instance.** `--bypass 3` → `2`, `--bypass-toggle` →
+`1`, `--bypass 2` → `2`. Read rather than assumed: the local-socket forwarding
+was inherited and had never been exercised since the command line was cut down.
+
+### The harness, and the result it invented
+
+`spike/recovery.sh` brings its own PipeWire — a private daemon, one null sink,
+no device monitors — so killing the audio service costs the desktop nothing.
+42Hz connects to it exactly as to the session's and builds all seven nodes.
+`module-access` is not optional there and its absence is silent: without it a
+client connects, gets no permissions, and hangs on a registry that never comes.
+
+**Its first run reported that 42Hz reconnects after a service restart** — which
+`project.md` says it cannot, and which would have been the headline finding of
+this milestone. It was the harness. A leftover daemon from an earlier
+experiment had the socket name; the new one silently bound the *next* name
+("-manager"), so the script killed and restarted a daemon nothing was talking
+to while every client kept using the old one. **A test that can be pointed at
+the wrong subject will eventually be, and it fails by passing.** Now a preflight
+refusal, as is the other silent one: the single-instance lock does not care
+which PipeWire an instance talks to, so with a 42Hz already running every
+instance the harness starts exits immediately, successfully, as a secondary —
+and every check below measures nothing.
+
+Two more of my own bugs in the same script, both worth the entry. Backgrounding
+a *function* makes `$!` the wrapping subshell, so `kill` hit a wrapper and left
+the daemon serving. And the forced-termination check ran on the instance left
+over from the reconnection test, which by then owned nothing at all: it passed
+on an empty graph. Both checks now start their own instance and refuse to assert
+on one that has nothing to lose.
+
+Five checks pass against the private graph: the graph is built; the service dies
+and 42Hz survives it (the `on_core_error` patch, now demonstrated rather than
+asserted); the service returns and 42Hz stays up without rebuilding; `SIGKILL`
+and `SIGTERM` each leave no node behind. The no-reconnect check asserts the
+*limitation*, so a future fix is noticed rather than silently absorbed.
+
+The sixth ran against the session and passed: with the desktop's default set to
+`42hz_sink` and 42Hz killed outright, the session settled back on the USB
+headset it had come from, and the harness restored it anyway. Nothing here is
+42Hz's doing — the session manager repoints a default whose node has vanished —
+but that is exactly the claim, and it had never been watched happen.
+
+### Still open
+
+The package has still not been installed or launched from, and `namcap` is still
+not on this machine.
+
+---
+
 ## 2026-09-01 (eighth pass) — The package, and what it was quietly shipping
 
 **Commit:** `4cd24f8`

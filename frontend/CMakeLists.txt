@@ -15,6 +15,13 @@
 
 find_package(Qt6 REQUIRED COMPONENTS Qml Quick)
 
+# The diagnostics report asks PipeWire and LV2 directly rather than through the
+# core -- see frontend/diagnostics.hpp for why it must not build a graph. Both
+# are already runtime dependencies of the package; neither is new.
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(HZ_PIPEWIRE libpipewire-0.3>=1.0.6 IMPORTED_TARGET REQUIRED)
+pkg_check_modules(HZ_LILV lilv-0>=0.24 IMPORTED_TARGET REQUIRED)
+
 # The derived core sets these in its own directory scope; CMake does not
 # propagate them sideways, so declare them here rather than relying on upstream.
 set(CMAKE_AUTOMOC ON)
@@ -37,6 +44,8 @@ qt_add_qml_module(hz_frontend
     SOURCES
         theme.cpp
         theme.hpp
+        diagnostics.cpp
+        diagnostics.hpp
     QML_FILES
         Main.qml
         Frame.qml
@@ -55,7 +64,13 @@ qt_add_qml_module(hz_frontend
         ShellFramed.qml
 )
 
-target_link_libraries(hz_frontend PRIVATE Qt6::Core Qt6::Gui Qt6::Quick)
+target_link_libraries(hz_frontend PRIVATE Qt6::Core Qt6::Gui Qt6::Quick PkgConfig::HZ_PIPEWIRE PkgConfig::HZ_LILV)
 
 # Linking the generated plugin is what registers the module with the engine.
-target_link_libraries(easyeffects PRIVATE hz_frontendplugin)
+# hz_frontend itself is linked too: the patched main.cpp calls hz::report()
+# directly, and that is a plain C++ entry point with no QML type behind it.
+target_link_libraries(easyeffects PRIVATE hz_frontendplugin hz_frontend)
+
+# So the patched main.cpp can #include "diagnostics.hpp". This is the only
+# place the core reaches into 42Hz's own sources, and it is one header.
+target_include_directories(easyeffects PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})

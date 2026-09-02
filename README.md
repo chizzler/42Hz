@@ -89,8 +89,32 @@ or a wedged config needs:
 -b, --bypass <1|2|3>   Global bypass: 1 enable, 2 disable, 3 report.
 --bypass-toggle        Toggle it -- what a Hyprland binding calls.
 -r, --reset            Reset stored settings to their defaults.
+--diagnostics          Report versions, capabilities and graph, then exit.
 --debug                Enable debug messages.
 ```
+
+Run against a 42Hz that is already up, `--bypass` reaches that instance rather
+than starting a second one.
+
+`--diagnostics` prints what the window reports in words, plus both versions and
+what 42Hz can see of the graph:
+
+```
+42Hz 0.7.0 (Easy Effects core 8.2.8)
+io.github.chizzler.42Hz
+
+  application     ready         an instance is already running
+  audio service   ready         PipeWire 1.6.8, 48000 Hz
+  processing      ready         8 nodes in the graph
+  equalizer       ready         http://lsp-plug.in/plugins/lv2/para_equalizer_x32_lr
+  theme           ready         tokyo-night (dark)
+
+  42Hz nodes      8             42hz_sink, 42hz_source, hz_soe_spectrum, ...
+  playback        1             stream in the graph
+```
+
+It builds no processing graph and changes no routing, and exits non-zero when
+something it reports on is missing. 42Hz not running is not a failure.
 
 The derived core inherits a much larger command line from EasyEffects — service
 mode, preset load and query, window hiding. None of it is registered: 42Hz is not

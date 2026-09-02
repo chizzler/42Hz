@@ -1068,11 +1068,80 @@ pointing at a dead 42Hz node. Tests cover forced termination as well as graceful
 shutdown — specifically, killing the process while the default route points *at* a
 42Hz node.
 
+**Verifying it needs a service that can be killed, and the session's is not
+it.** `spike/recovery.sh` brings its own: a private PipeWire daemon in its own
+runtime directory, one null sink, no device monitors, and 42Hz connects to it
+exactly as it connects to the session's — virtual devices, filters, spectrum.
+Killing that daemon is a service failure with no consequences for the desktop,
+which is the only way this test is worth running twice. `module-access` is not
+optional in that configuration and its absence is silent: without it a client
+connects, is given no permissions, and hangs waiting for a registry that never
+arrives.
+
+Five checks run there — the graph is built; the service dies and 42Hz survives
+it; the service returns and 42Hz stays up without rebuilding, which is the
+documented limitation asserted so that a future fix is *noticed*; and neither
+`SIGKILL` nor `SIGTERM` leaves a node behind. Each termination check starts its
+own instance, because an instance that has already lost its service owns nothing
+and killing it would pass on an empty graph.
+
+Two things make that harness lie if they are not checked first, and both fail
+silently. A leftover daemon whose socket name is taken binds the *next* one and
+goes on answering every client, so the script kills and restarts something
+nothing is talking to — which reads exactly like 42Hz reconnecting. And the
+single-instance lock is session-global regardless of which PipeWire an instance
+is talking to, so with one already running every instance the harness starts
+exits immediately, successfully, as a secondary. Both are preflight refusals.
+
+The default route is the one claim the private graph cannot settle, because it
+is about what the *session manager* does when a node disappears and that daemon
+deliberately runs without one. `--desktop` runs it against the session: set the
+default to `42hz_sink`, kill 42Hz outright, and check the desktop settles on a
+sink that exists. It restores the original default on every exit path, and is
+opt-in because it moves the desktop's audio for a second.
+
+## Diagnostics
+
+**`42hz --diagnostics` answers from a terminal what the window answers in
+words**, and adds the two versions and what 42Hz can see of the graph: the
+application, the audio service, processing, the equalizer and the theme, each
+with the evidence its state was read from. "ready" on its own is not a
+diagnostic. It exits 0 when everything this machine is responsible for is in
+place and 1 otherwise, so a script can branch on it — 42Hz not running is not a
+failure; an unreachable audio service, a missing LV2 provider, unreadable theme
+state and a running instance with no nodes in the graph are.
+
+**It builds no graph, and that is the whole design.** `pw::Manager`'s
+constructor loads 42Hz's virtual devices and then spins until they appear, so
+asking the core would make the diagnostic change the routing it was asked
+about — and would abort through `util::fatal` in exactly the case the report
+exists to explain. So the report opens its own read-only connection: a context,
+a registry, one roundtrip, a two-second timeout, and nothing bound that could
+move a stream. A diagnostic that hangs is worse than one that reports a timeout.
+
+Three constraints pin where it runs in `main()`: after the lock file, because
+whether another instance holds it is one of the things reported; before the
+single-instance branch, because forwarding it to a running instance would print
+it on that process's stdout rather than the caller's; and before `CoreServices`,
+for the reason above. It is registered in `addOptions()` so `--help` lists it,
+but it is not handled in `process_events()`, which runs too late.
+
+The report is 42Hz's own tracked source (`frontend/diagnostics.*`) and names
+nothing: every identity string it prints is handed in by the patched `main.cpp`
+from the table in `reduce-deps.py`. The equalizer's LV2 URI is upstream's
+constant rather than a 42Hz name, so the patch script checks that the URI it
+hands over is still the one `equalizer.cpp` loads, and fails the patch if it is
+not — a diagnostic that reports on a plugin the equalizer no longer uses is a
+diagnostic that lies.
+
+**It needs a display.** `QApplication` is constructed before any of this, so
+`--diagnostics` is a report about a desktop session, run from inside one.
+
 ## Command surface
 
 **The derived core is an engine, and its command line is not 42Hz's.** Upstream's
 `QCommandLineParser` surface is a product surface built on top of the engine;
-42Hz inherits none of it by default. Four options are registered, and they are
+42Hz inherits none of it by default. Five options are registered, and they are
 the ones 42Hz stands behind:
 
 - `--debug` — load-bearing for development, for the reason under *Three traps in
@@ -1080,6 +1149,13 @@ the ones 42Hz stands behind:
 - `-b, --bypass <1|2|3>` and `--bypass-toggle` — 42Hz has a global bypass, and
   this is the flag a Hyprland binding calls.
 - `-r, --reset` — the escape hatch when stored settings are wedged.
+- `--diagnostics` — 42Hz's own, and the only one that is not inherited. See
+  *Diagnostics* below.
+
+A second invocation does not start a second 42Hz: it takes the lock file's
+answer, forwards its command to the running instance over the local socket and
+exits. That is how `--bypass` reaches a window that is already up, and why
+`--bypass 3` prints the running instance's state rather than a stored default.
 
 `--help`, `--version`, `--author`, `--license` and `--desktopfile` come from
 `KAboutData::setupCommandLine()`.
@@ -1095,6 +1171,12 @@ torn out of the engine. `isSet()` on a name that was never registered returns
 false with no warning and no assert, so every block in `process_events()` guarding
 a removed option is unreachable rather than broken, and `process()` answers a
 removed flag with `Unknown option` and exit 1. Restoring one is re-adding its line.
+
+**One sentence describes 42Hz, and it is 42Hz's own.** `--help`, the about box
+and the AppStream metadata all read it from `SUMMARY` in the patch script.
+Upstream's `KAboutData` short description is "Global audio effects", which
+describes Easy Effects; carrying it under 42Hz's name is not attribution but a
+wrong claim about what the program is.
 
 **Version.** 42Hz carries its own, distinct from the core it derives from —
 `HZ_VERSION` in the tracked top-level `CMakeLists.txt`, wired into the patched
