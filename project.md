@@ -1203,6 +1203,14 @@ against the same digest `fetch.sh` pins — the two must be bumped together, and
 trusting it. The payload is seven files: binary, desktop entry, three icons,
 metainfo, licence.
 
+**makepkg builds inside `packaging/`, and nothing it leaves there belongs in
+git.** `pkg/` and `src/` are its working directories: `src/42hz` is where
+`git archive HEAD` unpacks, so it holds a full second copy of every tracked
+file, and `pkg/` holds the staged payload — including an unstripped debug binary
+larger than the entire history that produced it. Both are ignored, but an ignore
+rule does not untrack what is already tracked, so the check that means anything
+is `git ls-files packaging`: it must list `PKGBUILD` and nothing else.
+
 **The package must own no path another package owns.** `ki18n_install(po)` was
 installing 45 `easyeffects.mo` catalogues into `/usr/share/locale`, which are
 never read — `APPLICATION_DOMAIN` is `42hz`, so `KLocalizedString` looks for

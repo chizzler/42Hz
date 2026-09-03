@@ -13,6 +13,67 @@ Detailed evidence is in `docs/spike-*.md`.
 
 ---
 
+## 2026-09-03 — What the package build left behind
+
+**Commit:** `TBD`
+
+The repository was carrying its own build output, and had been since the
+packaging pass.
+
+**makepkg builds inside the directory its PKGBUILD lives in.** `packaging/pkg`
+and `packaging/src` are its working directories, and the packaging commit added
+them to git alongside the PKGBUILD: a 170 MB unstripped debug binary, a 9.7 MB
+stripped one, and a complete second copy of 42Hz's own source under
+`packaging/src/42hz`. The `.gitignore` rules for both landed one commit later,
+which is why it went unnoticed — **an ignore rule does nothing to a file that is
+already tracked**, so the entries read as though they covered the problem while
+every commit after them carried the blobs forward regardless. `.git` was 158 MB
+for a project whose source is under 500 KB.
+
+The duplicated source was the worse half. `packaging/src/42hz` is where
+`git archive HEAD` unpacks during a build, so the tree held a stale copy of
+every tracked file, one commit behind the real one, and `git status` reported
+modifications in it after every package build. Greps for project strings matched
+twice, and the second match was always the wrong file.
+
+**Purged rather than untracked.** Untracking stops the growth and leaves the
+blobs reachable, so every clone still pays for them, and this repository is
+about to be published. Four commits carried the output; they were rebuilt
+without it and the 72 before them were left alone. Free only because no remote
+exists yet — the same licence the email rewrite spent, and it is the second time
+this project has spent it.
+
+**The diary's own convention is the trap in a rewrite**, and it caught this one
+exactly as it caught the last: entries record commit hashes, so rewriting a
+commit orphans every reference to it. Two diary entries and two commit subjects
+named a hash that was about to move. `filter-branch` exposes `map`, so the index
+filter and the message filter each resolved the old abbreviation, mapped it and
+re-abbreviated in the same pass — no follow-up fixup, and no commit in between
+where the diary pointed at nothing.
+
+### Verified
+
+The rewritten tree was diffed against a bundle of the pre-rewrite history rather
+than inspected: 39 tracked files on both sides, blob hashes identical, with
+`docs/dev-diary.md` the single exception and its only change the two remapped
+hashes. 76 commits before and after. `git fsck` clean, working tree clean,
+`.git` 158 MB → 556 KB, and the build unaffected.
+
+### Decided
+
+**The pointer harness is not landing.** Open since 2026-08-31. 42Hz is one
+window on a desktop and driving it by hand costs little; a stub tree for `ee.ui`
+and the CMake wiring to run it does, and it buys less than it costs at this
+size. Manual testing is the accepted approach for the frontend. The question is
+closed rather than carried.
+
+### Still open
+
+The package has still not been installed or launched from. `namcap` is on this
+machine now.
+
+---
+
 ## 2026-09-02 — The report, and a harness that lied once
 
 **Commit:** `0e68193`
