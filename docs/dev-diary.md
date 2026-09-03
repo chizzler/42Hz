@@ -15,7 +15,7 @@ Detailed evidence is in `docs/spike-*.md`.
 
 ## 2026-09-03 — What the package build left behind
 
-**Commit:** `TBD`
+**Commit:** `b3b0ad4`
 
 The repository was carrying its own build output, and had been since the
 packaging pass.
