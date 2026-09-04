@@ -19,21 +19,29 @@ license=('GPL-3.0-or-later')
 # in the top-level CMakeLists.txt; prepare() checks that rather than trusting it.
 _upstream_ver=8.2.8
 
+# What the binary actually links, plus what it needs at runtime and nothing
+# else. cblas, abseil-cpp and libglvnd were listed here and are not direct
+# dependencies -- they arrive through gsl, webrtc-audio-processing and qt6-base
+# respectively, and appear in ldd only for that reason.
 depends=(
   # Toolkit and KDE Frameworks the frontend and core are built against.
   'qt6-base' 'qt6-declarative' 'kconfig' 'kcoreaddons' 'ki18n'
   # Session, DSP hosting and analysis.
-  'libpipewire' 'lilv' 'fftw' 'gsl' 'cblas'
+  'libpipewire' 'lilv' 'fftw' 'gsl'
   # DSP the core links directly.
   'libebur128' 'libbs2b' 'libmysofa' 'libsndfile' 'rnnoise' 'soundtouch'
   'speexdsp' 'webrtc-audio-processing' 'zita-convolver'
   # Runtime support.
-  'abseil-cpp' 'onetbb' 'libglvnd'
+  'onetbb'
+  # 42Hz installs into /usr/share/icons/hicolor, so it owns none of that
+  # hierarchy and must depend on the package that does.
+  'hicolor-icon-theme'
   # The equalizer's LV2 provider. Not a link-time dependency -- the core loads
   # http://lsp-plug.in/plugins/lv2/para_equalizer_x32_lr through lilv at
   # runtime -- but 42Hz ships an equalizer, so it is not optional.
   'lsp-plugins-lv2'
-  # The audio service itself.
+  # The audio service itself: libpipewire is the client library, this is the
+  # daemon 42Hz is useless without. Neither is visible to a linker.
   'pipewire'
 )
 

@@ -13,6 +13,46 @@ Detailed evidence is in `docs/spike-*.md`.
 
 ---
 
+## 2026-09-04 — The dependency list namcap disagreed with
+
+**Commit:** `PENDING`
+
+`namcap` ran against the built package for the first time, and three of the
+declared dependencies did not survive it.
+
+**`ldd` is not a dependency list.** `cblas`, `abseil-cpp` and `libglvnd` were
+declared because the binary loads their libraries, and it does — through `gsl`,
+`webrtc-audio-processing` and `qt6-base` respectively, each of which already
+depends on them. A package that names a transitive dependency claims a
+relationship it does not have, and pins a library it never chose. All three are
+dropped; what remains is what 42Hz links directly, plus the two runtime
+dependencies no linker can see.
+
+**One was missing in the other direction.** The package installs three icons
+into `/usr/share/icons/hicolor/scalable/apps`, a directory it does not own and
+must not create, so `hicolor-icon-theme` is now declared. This is the same rule
+that removed the 45 stray `easyeffects.mo` catalogues in the packaging pass,
+read from the other side: the package must own no path another package owns,
+and must depend on whoever owns the paths it writes into.
+
+### Verified
+
+The three dropped dependencies confirmed transitive by `pactree -r` in both
+directions. `namcap` on the built package now reports only expected results:
+`libgcc`, `glibc` and `libstdc++` implicitly satisfied; `ee.ui` unresolvable
+because it is 42Hz's own QML module, linked into the binary rather than
+installed; and `lsp-plugins-lv2` and `pipewire` flagged as possibly unneeded,
+which is exactly what a runtime-only dependency looks like to a tool reading
+link tables. The PKGBUILD's own `$startdir` error is the deliberate
+`git archive HEAD`. Payload is the documented seven files.
+
+### Still open
+
+The package has still not been installed or launched from. Unchanged from the
+last entry, and now the only thing between milestone 5 and its end.
+
+---
+
 ## 2026-09-03 — What the package build left behind
 
 **Commit:** `b3b0ad4`
