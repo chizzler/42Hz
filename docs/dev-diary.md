@@ -13,6 +13,59 @@ Detailed evidence is in `docs/spike-*.md`.
 
 ---
 
+## 2026-09-05 — Two bypasses, one chain, and a graph that was seven until it was eight
+
+**Commit:** `bf97466`
+
+Three release-review findings, all real, though the diagnostic one needed a
+more precise answer than the first proposal gave it.
+
+**The two bypasses stay distinct and are both reported.** The window's `b` moves
+the equalizer plugin's atomic bypass, because the inherited global bypass tears
+both pipelines down and rebuilds them. The command line retains that global
+control for external keybindings. Before this pass the window observed only the
+first, so `--bypass-toggle` could leave it saying the EQ was active while global
+bypass still held all processing off, and the disconnected pipeline appeared as
+a fault. `DbMain.bypass` now reaches the title, editor and state report; the
+global state is named as intentional, and an EQ toggle says when global bypass
+still wins.
+
+**One chain now means one entry.** Startup used to repair the output plugin list
+only when `equalizer#0` was absent. A list containing the equalizer beside any
+other effect therefore survived, while the interface continued to present
+itself as the complete control surface for a one-effect chain. It now accepts
+only the exact list `[equalizer#0]`. A fenced run seeded with
+`equalizer#0,compressor#0` wrote back the single entry.
+
+**Diagnostics requires the complete base graph.** One recognisable 42Hz node
+used to produce `processing ready`. The report now requires both virtual
+endpoints, both spectrum and level pairs, and the test-signal source, rejects
+unexpected 42Hz nodes, and accepts the output equalizer as the sole eighth node
+when its path is active.
+
+The first version of that check assumed the EQ node always existed. The private
+recovery graph proved otherwise: QML installs the EQ setting at startup, but the
+core connects its PipeWire filter lazily with an active output path, so an idle
+instance correctly owns seven nodes. The report now distinguishes a complete
+seven-node idle base from the complete eight-node active graph. The recovery
+harness waits for the exact base set and runs the diagnostic against it, rather
+than declaring victory when any node appears or the count pauses briefly.
+
+### Verified
+
+Release build succeeds; the QML cache compiler accepts every changed component;
+the isolated PipeWire recovery suite passes all six checks, including the live
+diagnostic; and the polluted-chain run repairs the stored list. The desktop-route
+test remains opt-in and was not repeated because none of these changes touches
+routing or teardown.
+
+### Still open
+
+The package has still not been installed or launched from. That remains the last
+milestone-5 check.
+
+---
+
 ## 2026-09-04 — The dependency list namcap disagreed with
 
 **Commit:** `e375e4d`
