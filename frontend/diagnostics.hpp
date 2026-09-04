@@ -40,8 +40,10 @@ struct Identity {
 // everything this machine is responsible for is in place, 1 otherwise. A
 // diagnostic that always succeeds is not one a script can branch on. 42Hz not
 // running is not a failure; an unreachable audio service, a missing LV2
-// provider, unreadable theme state, and a running instance with no nodes in
-// the graph all are.
+// provider, unreadable theme state, and a running instance with an incomplete
+// base graph or unexpected 42Hz nodes all are. The output equalizer node is a
+// valid optional eighth node because the core connects it only while that path
+// is active.
 auto report(const Identity& identity) -> int;
 
 }  // namespace hz

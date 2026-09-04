@@ -156,17 +156,12 @@ start_42hz() {
         "$BIN" > "$RUN/42hz.log" 2>&1 &
     HZ_PID=$!
 
-    wait_for "42Hz's own nodes" "[[ \$(node_count) -gt 0 ]]" || return 1
-
-    # The graph arrives in pieces. Waiting for the first node would report
-    # whatever moment the read caught, so wait for the count to stop moving.
-    local last=-1 now i
-    for ((i = 0; i < 50; i++)); do
-        now=$(node_count)
-        [[ $now == "$last" ]] && return 0
-        last=$now
-        sleep 0.1
-    done
+    # The graph arrives in pieces. The equalizer setting is installed by the
+    # QML startup timer, but its PipeWire filter is connected lazily only when
+    # an output path is active; this private graph has no playback stream and
+    # therefore correctly settles at the seven-node base. Wait for that exact
+    # contract rather than for the first node or a briefly stable count.
+    wait_for "42Hz's complete seven-node base graph" nodes_complete
 }
 
 # Nothing here may sleep for a fixed time: a graph that is slow once is a false
@@ -199,6 +194,21 @@ for o in d:
 }
 
 node_count() { nodes | wc -l; }
+
+expected_nodes() {
+    printf '%s\n' \
+        42hz_sink \
+        42hz_source \
+        hz_sie_output_level \
+        hz_sie_spectrum \
+        hz_soe_output_level \
+        hz_soe_spectrum \
+        hz_test_signals
+}
+
+nodes_complete() {
+    diff -q <(expected_nodes | sort) <(nodes | sort) >/dev/null
+}
 
 alive() { [[ -n ${HZ_PID:-} ]] && kill -0 "$HZ_PID" 2>/dev/null; }
 
@@ -249,11 +259,25 @@ step "1. 42Hz builds its graph in the private service"
 start_42hz
 built=$(nodes | paste -sd' ')
 n=$(wc -w <<< "$built")
-if [[ $n -gt 0 ]]; then
+if nodes_complete; then
     ok "$n nodes: $built"
 else
-    bad "42Hz created no nodes; nothing below would mean anything"
+    bad "42Hz did not create exactly the expected nodes: $built"
     exit 1
+fi
+
+# Run the read-only report while the instance owns that graph. This catches the
+# distinction the report exists to make: one surviving node is not processing
+# readiness; all seven base nodes are.
+report_status=0
+report=$(XDG_CONFIG_HOME="$FENCE" PIPEWIRE_RUNTIME_DIR="$RUN" PIPEWIRE_REMOTE="$REMOTE" \
+    "$BIN" --diagnostics 2>&1) || report_status=$?
+
+if [[ $report_status -eq 0 ]] && grep -q 'processing.*ready.*complete 7-node base graph' <<< "$report"; then
+    ok "diagnostics reports the complete graph ready"
+else
+    bad "diagnostics did not accept the complete graph"
+    note "$report"
 fi
 
 step "2. the audio service dies under it"

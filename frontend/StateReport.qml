@@ -22,6 +22,7 @@ Item {
     property bool spectrumFlowing: true
     property bool signalPresent: true
     property int streamCount: 1
+    property bool globalBypassed: false
 
     // The empty mixer says one thing and means it, so it borrows the same
     // presentation with the diagnosis switched off.
@@ -40,6 +41,17 @@ Item {
                 "title": "no audio service",
                 "detail": "PipeWire is not reachable",
                 "error": true
+            };
+
+        // Global bypass disconnects and reconnects the pipelines in passthrough,
+        // so `processingReady` going false here is an instruction the user gave,
+        // not a processing failure. This commonly arrives from a command-line
+        // keybinding while the window is already open.
+        if (report.globalBypassed)
+            return {
+                "title": "bypassed",
+                "detail": "global processing is disabled",
+                "error": false
             };
 
         if (report.streamCount === 0)

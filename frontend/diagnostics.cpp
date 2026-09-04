@@ -10,6 +10,7 @@
 #include <spa/utils/dict.h>
 
 #include <QStringList>
+#include <QSet>
 #include <QTextStream>
 #include <ctime>
 #include <string_view>
@@ -17,6 +18,31 @@
 #include "theme.hpp"
 
 namespace {
+
+auto base_nodes(const hz::Identity& identity) -> QSet<QString> {
+  const auto& prefix = identity.nodePrefix;
+
+  // The fixed first-release base graph: two virtual endpoints; the level and
+  // spectrum filters in both directions; and the core's test-signal source.
+  // The equalizer filter is connected lazily when the output path becomes
+  // active, so an idle instance correctly owns these seven nodes rather than
+  // eight. Readiness still means the base is complete, not that any one
+  // recognisable node happened to survive.
+  return {identity.sinkName,
+          identity.sourceName,
+          prefix + QStringLiteral("sie_output_level"),
+          prefix + QStringLiteral("sie_spectrum"),
+          prefix + QStringLiteral("soe_output_level"),
+          prefix + QStringLiteral("soe_spectrum"),
+          prefix + QStringLiteral("test_signals")};
+}
+
+auto sorted(const QSet<QString>& values) -> QStringList {
+  QStringList result(values.cbegin(), values.cend());
+  result.sort();
+
+  return result;
+}
 
 // What one read-only pass over the graph can establish. Nothing here is bound
 // beyond the registry, so nothing here can move a stream.
@@ -245,14 +271,29 @@ auto report(const Identity& identity) -> int {
   // fault when there is an instance that should have built it. Reported as
   // "not running" rather than "stopped" -- project.md is explicit that those
   // are different states and must not be worded alike.
-  const auto ownNodes = graph.ownNodes;
+  auto ownNodes = graph.ownNodes;
+  ownNodes.removeDuplicates();
+  ownNodes.sort();
 
-  if (!ownNodes.isEmpty()) {
+  const QSet<QString> actualNodes(ownNodes.cbegin(), ownNodes.cend());
+  const auto baseNodes = base_nodes(identity);
+  auto allowedNodes = baseNodes;
+  const auto equalizerNode = identity.nodePrefix + QStringLiteral("soe_equalizer");
+  allowedNodes.insert(equalizerNode);
+
+  const auto missingNodes = baseNodes - actualNodes;
+  const auto unexpectedNodes = actualNodes - allowedNodes;
+  const bool graphComplete = missingNodes.isEmpty() && unexpectedNodes.isEmpty();
+
+  if (graphComplete) {
     line(out, QStringLiteral("processing"), QStringLiteral("ready"),
-         QStringLiteral("%1 nodes in the graph").arg(ownNodes.size()));
+         actualNodes.contains(equalizerNode) ? QStringLiteral("complete 8-node active graph")
+                                             : QStringLiteral("complete 7-node base graph; output chain idle"));
   } else if (identity.instanceRunning) {
     line(out, QStringLiteral("processing"), QStringLiteral("stopped"),
-         QStringLiteral("an instance is running but has no nodes in the graph"));
+         missingNodes.isEmpty()
+             ? QStringLiteral("unexpected 42Hz nodes are present")
+             : QStringLiteral("missing %1").arg(sorted(missingNodes).join(", ")));
   } else {
     line(out, QStringLiteral("processing"), QStringLiteral("not running"),
          QStringLiteral("42Hz is not processing audio"));
@@ -269,8 +310,13 @@ auto report(const Identity& identity) -> int {
   if (graph.reachable) {
     out << '\n';
 
-    line(out, QStringLiteral("42Hz nodes"), QString::number(ownNodes.size()),
-         ownNodes.isEmpty() ? QStringLiteral("none in the graph") : ownNodes.join(QStringLiteral(", ")));
+    auto nodeDetail = ownNodes.isEmpty() ? QStringLiteral("none in the graph") : ownNodes.join(QStringLiteral(", "));
+
+    if (!unexpectedNodes.isEmpty()) {
+      nodeDetail += QStringLiteral("; unexpected: ") + sorted(unexpectedNodes).join(QStringLiteral(", "));
+    }
+
+    line(out, QStringLiteral("42Hz nodes"), QString::number(ownNodes.size()), nodeDetail);
 
     line(out, QStringLiteral("playback"), QString::number(graph.playbackStreams),
          graph.playbackStreams == 1 ? QStringLiteral("stream in the graph")
@@ -283,7 +329,7 @@ auto report(const Identity& identity) -> int {
   // machine 42Hz is running on, so a stopped pipeline only counts when an
   // instance is up to have built one.
   const bool failed = !graph.reachable || !equalizerFound || !theme.ready() ||
-                      (identity.instanceRunning && ownNodes.isEmpty());
+                      (identity.instanceRunning && !graphComplete);
 
   return failed ? 1 : 0;
 }

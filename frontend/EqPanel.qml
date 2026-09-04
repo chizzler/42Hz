@@ -63,13 +63,14 @@ Item {
     // editor is up, and it is this one.
     property bool audioServiceReady: true
     property bool processingReady: true
+    property bool globalBypassed: false
     property bool spectrumFlowing: true
     property bool signalPresent: true
     property int streamCount: 1
 
     readonly property int bandCount: panel.ready ? panel.pluginDB.numBands : 0
 
-    readonly property bool bypassed: panel.ready && panel.pluginDB.bypass
+    readonly property bool bypassed: panel.globalBypassed || (panel.ready && panel.pluginDB.bypass)
 
     // Whether a band is being dragged. A drag keeps its pointer grab after the
     // pointer has left the window, so the chrome has to know one is live before
@@ -825,6 +826,7 @@ Item {
         spectrumFlowing: panel.spectrumFlowing
         signalPresent: panel.signalPresent
         streamCount: panel.streamCount
+        globalBypassed: panel.globalBypassed
 
         // The equalizer's own faults outrank the signal's: an editor for a
         // plugin that is not there has nothing to say about whether audio is

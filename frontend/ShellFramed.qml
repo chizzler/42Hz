@@ -78,6 +78,10 @@ Item {
     // window owns the plugin, and a shell reading DbMain.bypass would be
     // reporting a different flag from the one the key now moves.
     property bool bypassed: false
+    // The core-wide command-line bypass is distinct from the equalizer's own
+    // cheap bypass. The title combines them; the surface needs the distinction
+    // so a deliberately disconnected pipeline is not reported as a fault.
+    property bool globalBypassed: false
     property int streamCount: 1
 
     // The legend is handed down as data. See Main: the same table drives the
@@ -248,6 +252,7 @@ Item {
             spectrumFlowing: shell.spectrumFlowing
             signalPresent: shell.signalPresent
             streamCount: shell.streamCount
+            globalBypassed: shell.globalBypassed
         }
     }
 }

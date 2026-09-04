@@ -57,6 +57,7 @@ Item {
     property bool spectrumFlowing: true
     property bool signalPresent: true
     property int streamCount: 1
+    property bool globalBypassed: false
 
     readonly property alias streamPanel: panel
 
@@ -180,6 +181,7 @@ Item {
         spectrumFlowing: surface.spectrumFlowing
         signalPresent: surface.signalPresent
         streamCount: surface.streamCount
+        globalBypassed: surface.globalBypassed
     }
 
     // The count of streams the mixer has no room to draw, set into the divider
@@ -357,5 +359,6 @@ Item {
         spectrumFlowing: surface.spectrumFlowing
         signalPresent: surface.signalPresent
         streamCount: surface.streamCount
+        globalBypassed: surface.globalBypassed
     }
 }

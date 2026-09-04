@@ -661,6 +661,14 @@ passes through untouched, the graph never moves, and the spectrum keeps running
 while the two are compared. With one effect in the chain these mean the same
 thing to a listener and only one of them is free.
 
+The command line retains the core's global bypass because it is an external
+control over both pipelines. The window therefore observes both states: its
+`b` key and EQ editor move the equalizer's cheap bypass, while a global bypass
+changed by `--bypass` or `--bypass-toggle` is reported as an intentional stopped
+pipeline rather than as a processing failure. If both are set, both remain set;
+the window never claims that enabling the EQ restored processing while global
+bypass still holds it off.
+
 **Instantiated is not the same as installed.** With the LV2 provider missing the
 core still creates the filter node and passes audio through, so the editor and
 its key are backed by `packageInstalled` rather than by the instance existing.
@@ -1126,9 +1134,17 @@ it on that process's stdout rather than the caller's; and before `CoreServices`,
 for the reason above. It is registered in `addOptions()` so `--help` lists it,
 but it is not handled in `process_events()`, which runs too late.
 
-The report is 42Hz's own tracked source (`frontend/diagnostics.*`) and names
-nothing: every identity string it prints is handed in by the patched `main.cpp`
-from the table in `reduce-deps.py`. The equalizer's LV2 URI is upstream's
+Processing is ready only when the fixed seven-node base graph is complete: the
+two virtual endpoints, input and output spectrum and level filters, and the
+test-signal source. The output equalizer is connected lazily as an eighth node
+while that path is active. The report distinguishes the complete idle base from
+the complete active graph, accepts no other 42Hz nodes, and never treats one
+surviving node as readiness. PipeWire activity itself is not used as health:
+silence and absence are already distinct runtime states.
+
+The report is 42Hz's own tracked source (`frontend/diagnostics.*`) and hard-codes
+no product identity: every identity string it prints is handed in by the patched
+`main.cpp` from the table in `reduce-deps.py`. The equalizer's LV2 URI is upstream's
 constant rather than a 42Hz name, so the patch script checks that the URI it
 hands over is still the one `equalizer.cpp` loads, and fails the patch if it is
 not — a diagnostic that reports on a plugin the equalizer no longer uses is a

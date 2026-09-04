@@ -105,7 +105,7 @@ io.github.chizzler.42Hz
 
   application     ready         an instance is already running
   audio service   ready         PipeWire 1.6.8, 48000 Hz
-  processing      ready         8 nodes in the graph
+  processing      ready         complete 8-node active graph
   equalizer       ready         http://lsp-plug.in/plugins/lv2/para_equalizer_x32_lr
   theme           ready         tokyo-night (dark)
 

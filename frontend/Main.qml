@@ -149,6 +149,12 @@ Window {
     // plugin's own flag, which is what `b` moves.
     readonly property bool eqBypassed: root.eqReady && root.eqPluginDB.bypass
 
+    // The command line deliberately retains the core's global bypass: unlike
+    // the `b` key above it rebuilds both pipelines in passthrough. It is still
+    // state the window has to report, especially when a Hyprland binding moved
+    // it behind the window's back.
+    readonly property bool globalBypassed: DbMain.bypass
+
     // ---- the equalizer -----------------------------------------------------
 
     // 42Hz ships one effect, and it is in the chain from startup and stays
@@ -208,7 +214,12 @@ Window {
         if (!root.audioServiceReady)
             return;
 
-        if (DbStreamOutputs.plugins.indexOf(root.eqInstance) < 0)
+        // The first release owns one output chain containing one effect. Merely
+        // finding the equalizer somewhere in a saved list is not enough: an
+        // earlier development build or a hand-edited settings file may have
+        // left more effects beside it, turning the controls below into a partial
+        // account of what the audio is actually passing through.
+        if (DbStreamOutputs.plugins.length !== 1 || DbStreamOutputs.plugins[0] !== root.eqInstance)
             DbStreamOutputs.plugins = [root.eqInstance];
     }
 
@@ -437,7 +448,8 @@ Window {
         streamCount: root.streamCount
         toastText: root.toastText
         toastSeq: root.toastSeq
-        bypassed: root.eqBypassed
+        bypassed: root.eqBypassed || root.globalBypassed
+        globalBypassed: root.globalBypassed
         legendItems: root.legendItems
         legendFloorLabel: root.legendFloorLabel
 
@@ -557,7 +569,11 @@ Window {
                 }
 
                 root.eqPluginDB.bypass = !root.eqPluginDB.bypass;
-                root.showToast(root.eqPluginDB.bypass ? "eq bypassed" : "eq active");
+                if (root.globalBypassed)
+                    root.showToast(root.eqPluginDB.bypass ? "eq bypassed · global bypassed"
+                                                          : "eq active · global bypassed");
+                else
+                    root.showToast(root.eqPluginDB.bypass ? "eq bypassed" : "eq active");
             }
         },
         {
