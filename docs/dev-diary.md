@@ -15,7 +15,7 @@ Detailed evidence is in `docs/spike-*.md`.
 
 ## 2026-09-04 — The dependency list namcap disagreed with
 
-**Commit:** `PENDING`
+**Commit:** `e375e4d`
 
 `namcap` ran against the built package for the first time, and three of the
 declared dependencies did not survive it.
