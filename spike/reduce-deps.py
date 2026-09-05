@@ -487,6 +487,45 @@ def cli_text(s):
        {"debug", i18n("Enable debug messages.")}}""" % APP_NAME)
     return s
 
+
+# Removing an option from addOptions() does not make its isSet() call inert.
+# QCommandLineParser returns false, but also warns on stderr every time code asks
+# for an option it does not know. The inherited handler asked about all eight
+# removed options on every ordinary launch, producing nine warnings before the
+# window appeared. Remove those dead branches, the separate hide-window probe,
+# and its call from main; the retained reset and bypass paths stay untouched.
+def cli_dead_options_cpp(s):
+    s = sub(s, """void CommandLineParser::process_hide_window(bool& show_window) {
+  if (parser->isSet("hide-window")) {
+    show_window = false;
+  }
+}
+
+""", "")
+    s = sub(s, "  auto* pm = &presets::Manager::self();\n\n", "")
+
+    def cut(start, end):
+        nonlocal s
+        if s.count(start) != 1 or s.count(end) != 1:
+            sys.exit(f"error: command-line dead-path boundary moved: {start!r} -> {end!r}")
+        before, rest = s.split(start, 1)
+        _, after = rest.split(end, 1)
+        s = before + end + after
+
+    cut('  if (parser->isSet("quit")) {', '  if (parser->isSet("reset")) {')
+    cut('  if (parser->isSet("hide-window")) {', '  if (parser->isSet("bypass")) {')
+
+    return s
+
+
+def cli_dead_options_hpp(s):
+    return sub(s, "  void process_hide_window(bool& show_window);\n\n", "")
+
+
+def main_dead_options(s):
+    return sub(s, "  cmd_parser->process_hide_window(show_window);\n", "")
+
+
 # ---- main.cpp: --diagnostics, answered before anything is built ----
 #
 # 42Hz's own flag, and the only one that is not routed through
@@ -809,6 +848,9 @@ edit("src/tags_local_server.hpp", local_server)
 edit("src/test_signals.cpp", test_signals)
 edit("src/main.cpp", about)
 edit("src/command_line_parser.cpp", cli_text)
+edit("src/command_line_parser.cpp", cli_dead_options_cpp)
+edit("src/command_line_parser.hpp", cli_dead_options_hpp)
+edit("src/main.cpp", main_dead_options)
 edit("src/main.cpp", main_diagnostics)
 edit("src/autostart.cpp", autostart_portal)
 

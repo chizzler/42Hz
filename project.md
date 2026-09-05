@@ -1182,11 +1182,12 @@ options operate on preset *files*, which are out of the first release, so they
 address a store that stays empty. A future `--profile <name>` against the shipped
 audio profiles would be 42Hz's own flag to design, not one of these to keep.
 
-**Removing an option from `addOptions()` is the whole mechanism**, and nothing is
-torn out of the engine. `isSet()` on a name that was never registered returns
-false with no warning and no assert, so every block in `process_events()` guarding
-a removed option is unreachable rather than broken, and `process()` answers a
-removed flag with `Unknown option` and exit 1. Restoring one is re-adding its line.
+Removing an option requires removing both its `addOptions()` entry and every
+`isSet()` probe for it. Qt returns false for an unregistered name but also warns
+on stderr, so leaving the inherited branches in `process_events()` made every
+ordinary launch print nine `option not defined` warnings. The patch inventory
+removes those dead handlers while leaving their engine facilities intact;
+`process()` answers a removed flag with `Unknown option` and exit 1.
 
 **One sentence describes 42Hz, and it is 42Hz's own.** `--help`, the about box
 and the AppStream metadata all read it from `SUMMARY` in the patch script.
