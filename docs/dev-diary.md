@@ -15,7 +15,7 @@ Detailed evidence is in `docs/spike-*.md`.
 
 ## 2026-09-05 (third pass) — The package made it out of the repository
 
-**Commits:** `4e06f6d`, pending
+**Commits:** `4e06f6d`, `ad28f6d`
 
 The command-line cleanup was packaged as `42hz 0.7.0-2` and installed over the
 first package. Pacman reports that exact release at `/usr/bin/42hz`; launching
