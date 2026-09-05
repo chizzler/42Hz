@@ -10,7 +10,8 @@ that tracks the active Omarchy theme.
 Design and constraints are in [`project.md`](project.md); the development record
 is in [`docs/dev-diary.md`](docs/dev-diary.md).
 
-**Status:** milestones 1 to 5 complete. The first release candidate remains.
+**Status:** milestones 1 to 5 complete. The first release candidate remains;
+its gated runbook is [`docs/release-plan.md`](docs/release-plan.md).
 
 ## What it does
 

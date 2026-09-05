@@ -13,6 +13,31 @@ Detailed evidence is in `docs/spike-*.md`.
 
 ---
 
+## 2026-09-05 (fourth pass) — A release now has an entrance exam
+
+**Commit:** pending
+
+Milestone 6's one-line destination is now an ordered, gated release plan. It
+starts with the two decisions that change the candidate — version and original
+artwork — then makes metadata, documentation, source, audio, visual and package
+verification explicit. The last test starts from the public bytes rather than
+from the checkout that made them, and a failed published candidate advances to
+the next RC instead of moving a tag underneath its users.
+
+Writing the plan exposed a real release blocker: `packaging/PKGBUILD` obtains
+42Hz with `git archive HEAD` from its parent checkout. That correctly excluded
+uncommitted files during local package work, but cannot run from the source
+archive milestone 6 promises, because an archive contains no `.git`. The release
+sequence now requires a pinned, checksummed 42Hz source and proves the package
+from an extracted canonical archive.
+
+### Still open
+
+Execute the plan in [`release-plan.md`](release-plan.md). No milestone-6 gate has
+been claimed by documenting it.
+
+---
+
 ## 2026-09-05 (third pass) — The package made it out of the repository
 
 **Commits:** `4e06f6d`, `ad28f6d`

@@ -1309,6 +1309,8 @@ Changed packaging warns and continues; changed source refuses to build.
    controls, PipeWire recovery and forced termination, reproducible Arch package.
 6. **First release candidate** — attribution, limitations, build documentation,
    integration tests, upstream update procedure; publish the source release.
+   The ordered gates and exit criteria are in
+   [`docs/release-plan.md`](docs/release-plan.md).
 
 ## Working test
 
