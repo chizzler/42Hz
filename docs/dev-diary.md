@@ -15,7 +15,7 @@ Detailed evidence is in `docs/spike-*.md`.
 
 ## 2026-09-05 (fourth pass) — A release now has an entrance exam
 
-**Commit:** pending
+**Commit:** `c4026f9`
 
 Milestone 6's one-line destination is now an ordered, gated release plan. It
 starts with the two decisions that change the candidate — version and original
