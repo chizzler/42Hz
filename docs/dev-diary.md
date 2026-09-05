@@ -13,6 +13,38 @@ Detailed evidence is in `docs/spike-*.md`.
 
 ---
 
+## 2026-09-05 (second pass) — The options were gone; their questions were not
+
+**Commit:** `a18da18`
+
+The first installed smoke test found nine warnings on every ordinary launch:
+`QCommandLineParser: option not defined`. Eight inherited options had been
+removed from `addOptions()`, but their `isSet()` probes remained in
+`process_events()`, with `hide-window` asked twice. The design document claimed
+that an unregistered probe returned false silently. Qt does return false, and
+then warns — a useful distinction once stderr is involved.
+
+The patch inventory now removes every dead branch for the removed service,
+window and preset-file options, along with the separate hide-window probe and
+its call from `main()`. It leaves the engine facilities intact and retains the
+five command-line controls 42Hz owns. A removed option still reaches the parser
+and produces the intended single `Unknown option` error.
+
+### Verified
+
+A clean upstream extraction accepts the expanded patch inventory and the Release
+build succeeds. A normal second invocation against the running instance exits 0
+with empty stdout and stderr. `--hide-window` exits 1 with only
+`42hz: Unknown option 'hide-window'.`
+
+### Still open
+
+Rebuild and reinstall the package containing this fix, then launch the installed
+binary rather than the development build. That is the remaining milestone-5
+package check.
+
+---
+
 ## 2026-09-05 — Two bypasses, one chain, and a graph that was seven until it was eight
 
 **Commit:** `bf97466`
