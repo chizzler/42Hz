@@ -13,6 +13,34 @@ Detailed evidence is in `docs/spike-*.md`.
 
 ---
 
+## 2026-09-05 (third pass) — The package made it out of the repository
+
+**Commits:** `4e06f6d`, pending
+
+The command-line cleanup was packaged as `42hz 0.7.0-2` and installed over the
+first package. Pacman reports that exact release at `/usr/bin/42hz`; launching
+it from the home directory opens the application with empty stdout and stderr.
+The installed interface's three spectrum modes, equalizer and column-density
+control were exercised successfully. It is, at last, software rather than a
+particularly elaborate relationship with a build directory.
+
+### Verified
+
+The package rebuild completed, and `namcap` retained only the already-audited
+static-analysis warnings for implicit, internal-QML and runtime-only
+dependencies. The installed diagnostic reports 42Hz 0.7.0 over the Easy Effects
+8.2.8 core, PipeWire 1.6.8, the expected equalizer provider and the active
+Omarchy theme. It was run after the GUI had exited, so `no instance is running`,
+zero 42Hz nodes and zero playback streams are the correct idle result.
+
+### Still open
+
+Milestone 5 is complete. Milestone 6 remains: finish the release metadata and
+documentation, publish the source release, and validate the first release
+candidate from that published source.
+
+---
+
 ## 2026-09-05 (second pass) — The options were gone; their questions were not
 
 **Commit:** `a18da18`

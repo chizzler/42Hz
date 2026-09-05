@@ -7,8 +7,7 @@ spectrum-first Qt/QML one.
 
 - **Public name:** 42Hz **Executable:** `42hz` **Application ID:** `io.github.chizzler.42Hz`
 - **Upstream base:** EasyEffects `v8.2.8`, GPL-3.0-or-later
-- **Status:** milestones 1 to 4 complete. Milestone 5 (Omarchy integration
-  hardening and the Arch package) and milestone 6 (release candidate) remain.
+- **Status:** milestones 1 to 5 complete. Milestone 6 (release candidate) remains.
   Chronology is in [`docs/dev-diary.md`](docs/dev-diary.md).
 
 This document records what is true about the design: the decisions, and the
