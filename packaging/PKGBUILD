@@ -9,7 +9,7 @@
 
 pkgname=42hz
 pkgver=0.7.0
-pkgrel=1
+pkgrel=2
 pkgdesc='Ultra-minimal, Omarchy-native control surface for PipeWire audio'
 arch=('x86_64')
 url='https://github.com/chizzler/42Hz'
