@@ -45,7 +45,9 @@ depends=(
   'pipewire'
 )
 
-makedepends=('cmake' 'ninja' 'extra-cmake-modules' 'python' 'git')
+# nlohmann-json is header-only: upstream's configure requires it, but the
+# binary links nothing from it, so it is a build dependency and not a runtime one.
+makedepends=('cmake' 'ninja' 'extra-cmake-modules' 'python' 'git' 'nlohmann-json')
 
 # Two audio processors competing for the same streams and virtual-device role
 # is not a supported arrangement, and 42Hz reassigns every inherited identity

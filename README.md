@@ -167,8 +167,9 @@ ninja -C build
 ```
 
 The binary is `build/42hz`, installed under the application ID
-`io.github.chizzler.42Hz`. Requires Qt 6, KF6 (Config, CoreAddons, I18n), CMake
-and Ninja.
+`io.github.chizzler.42Hz`. Requires Qt 6, KF6 (Config, CoreAddons, I18n),
+nlohmann-json, CMake and Ninja, plus the libraries listed in
+[`packaging/PKGBUILD`](packaging/PKGBUILD).
 
 The build root is this repository. `upstream/` holds the patched derived core and
 is disposable — re-running `fetch.sh` replaces it wholesale. Never hand-edit it;
