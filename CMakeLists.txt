@@ -27,6 +27,11 @@ if(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/${HZ_UPSTREAM_DIR}/CMakeLists.txt)
         "Run:  ./spike/fetch.sh && ./spike/reduce-deps.py ${HZ_UPSTREAM_DIR}")
 endif()
 
+# KDECMakeSettings probes git for a remote to fetch KDE translations from
+# whenever the source root has no po/. 42Hz ships no catalogues, so claim the
+# target first and skip the probe -- in a checkout, an archive or a chroot.
+add_custom_target(fetch-translations)
+
 # The derived core. Declares the `easyeffects` target (OUTPUT_NAME 42hz) and
 # its QML module (URI hz.ui).
 add_subdirectory(${HZ_UPSTREAM_DIR})
