@@ -355,9 +355,14 @@ def shortcuts(s):
     return sub(s, '"easyeffects%1"', '"hz42%1"')
 
 # ---- contents/CMakeLists: install rules follow APPLICATION_ID ----
+# Upstream's icon rules go entirely: 42Hz's own artwork is installed from its
+# tracked icons/ by the top-level CMakeLists, so it stays out of this inventory.
 def contents_cmake(s):
-    s = s.replace("com.github.wwmm.easyeffects-symbolic.svg",     "${APPLICATION_ID}-symbolic.svg")
-    s = s.replace("com.github.wwmm.easyeffects-off-symbolic.svg", "${APPLICATION_ID}-off-symbolic.svg")
+    s = sub(s, "install(FILES \n    icons/${APPLICATION_ID}.svg \n"
+               "    DESTINATION ${KDE_INSTALL_FULL_DATADIR}/icons/hicolor/scalable/apps\n)\n\n", "")
+    s = sub(s, "install(FILES \n    icons/com.github.wwmm.easyeffects-symbolic.svg \n"
+               "    icons/com.github.wwmm.easyeffects-off-symbolic.svg \n"
+               "    DESTINATION ${KDE_INSTALL_FULL_DATADIR}/icons/hicolor/scalable/apps\n)\n\n", "")
     s = s.replace("com.github.wwmm.easyeffects.metainfo.xml.in",  "${APPLICATION_ID}.metainfo.xml.in")
     s = s.replace("com.github.wwmm.easyeffects.desktop.in",       "${APPLICATION_ID}.desktop.in")
     return s
@@ -868,12 +873,15 @@ edit(new_desktop.relative_to(root), desktop)
 (contents / "com.github.wwmm.easyeffects.desktop.in.template").unlink()
 print(f"  renamed desktop entry -> {new_desktop.name}")
 
-for old, new in [("com.github.wwmm.easyeffects.svg",              f"{APP_ID}.svg"),
-                 ("com.github.wwmm.easyeffects.Devel.svg",        f"{APP_ID}.Devel.svg"),
-                 ("com.github.wwmm.easyeffects-symbolic.svg",     f"{APP_ID}-symbolic.svg"),
-                 ("com.github.wwmm.easyeffects-off-symbolic.svg", f"{APP_ID}-off-symbolic.svg")]:
-    (contents / "icons" / old).rename(contents / "icons" / new)
-print(f"  renamed 4 icons -> {APP_ID}*.svg  (artwork still upstream's; milestone 6)")
+# Upstream's artwork is Easy Effects' face, not 42Hz's. Delete it so nothing
+# can install it by accident; 42Hz's own icons/ replaces all four.
+for name in ["com.github.wwmm.easyeffects.svg",
+             "com.github.wwmm.easyeffects.Devel.svg",
+             "com.github.wwmm.easyeffects-symbolic.svg",
+             "com.github.wwmm.easyeffects-off-symbolic.svg"]:
+    (contents / "icons" / name).unlink()
+(contents / "icons").rmdir()
+print("  removed upstream's 4 icons (42Hz installs its own from icons/)")
 
 # Upstream's metainfo is 65K of Easy Effects release notes. Shipping it under
 # the 42Hz application ID would be a false claim about what this program is,

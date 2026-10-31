@@ -1204,7 +1204,7 @@ obligations want and the startup banner prints.
 
 ## Packaging and upstream
 
-Ship one reproducible Arch package: application, desktop entry, symbolic icon,
+Ship one reproducible Arch package: application, desktop entry, icons,
 AppStream metadata, licences, runtime dependencies. Installation must not require
 an Omarchy plugin, hook, service activation or configuration edit. The package
 should conflict with EasyEffects so two processors do not compete for the same
@@ -1216,8 +1216,29 @@ package is built from a *commit* rather than from whatever the working tree
 holds, and the pinned Easy Effects release, which makepkg fetches and verifies
 against the same digest `fetch.sh` pins — the two must be bumped together, and
 `prepare()` checks its pinned version against `HZ_UPSTREAM_VERSION` rather than
-trusting it. The payload is seven files: binary, desktop entry, three icons,
-metainfo, licence.
+trusting it. The payload is ten files: binary, desktop entry, six icons,
+metainfo, licence. The icons are 42Hz's own, tracked in `icons/` and installed
+by the top-level CMakeLists; `reduce-deps.py` deletes upstream's artwork rather
+than renaming it.
+
+**The icon is a 13×13 dot matrix with "42" picked out in `#b1402a`.** The grey
+field is translucent black, fading from half opacity at the top to solid at the
+bottom. On a dark background it all but vanishes and leaves the red "42"
+standing alone. That is accepted, not a defect: it still reads as 42Hz, and
+most Omarchy themes are dark. `icons/scalable.svg` is hand-editable: cell
+(row, column) is centred at (column + 0.5, row + 0.5).
+
+**Below 32px the matrix turns to grey fuzz, so 16, 22 and 24px get a separate
+icon:** the red dot alone, centred on a `#5a5a5a` rounded tile. Each is drawn on
+its own pixel grid. Hicolor lists fixed-size directories before `scalable/`,
+and each covers ±2px, so the tile wins from about 14 to 26px and the matrix from
+32px up. The mid grey was chosen because it holds on both light and dark
+backgrounds; `#808080` washes out on light and `#3b3b3b` sinks into dark.
+
+**The symbolic icons are the "42" alone, one square pixel per dot**, on a 16px
+grid. Dots at that size blur into grey; squares stay crisp. The off variant adds
+upstream's red slash. Nothing in 42Hz currently requests either symbolic icon;
+they ship because upstream's did.
 
 **makepkg builds inside `packaging/`, and nothing it leaves there belongs in
 git.** `pkg/` and `src/` are its working directories: `src/42hz` is where

@@ -174,7 +174,7 @@ nlohmann-json, CMake and Ninja, plus the libraries listed in
 The build root is this repository. `upstream/` holds the patched derived core and
 is disposable — re-running `fetch.sh` replaces it wholesale. Never hand-edit it;
 changes to the derived core belong in `spike/reduce-deps.py`. 42Hz's own source
-is `frontend/`. See *Upstream working copy* in [`project.md`](project.md).
+is `frontend/`, and its artwork is `icons/`. See *Upstream working copy* in [`project.md`](project.md).
 
 ## Derivation and attribution
 
@@ -191,13 +191,16 @@ is `frontend/`. See *Upstream working copy* in [`project.md`](project.md).
 input/output pipelines, DSP/LV2 hosting, preset and state handling, and spectrum
 production (FFTW analysis with GSL spline interpolation).
 
-**Replaced:** the entire QML frontend, the application entry point, and the KDE
-colour-scheme adapter (`kcolor_manager`).
+**Replaced:** the entire QML frontend, the application entry point, the KDE
+colour-scheme adapter (`kcolor_manager`), and the application icons. 42Hz's
+artwork in `icons/` is original, © 2026 42Hz contributors, and is distributed
+under the same GPL-3.0-or-later terms as the rest of this repository. None of
+Easy Effects' artwork is installed.
 
 **Reassigned:** application ID, executable name, configuration and presets
 directories, single-instance lock and socket, logging category, PipeWire virtual
-node names, DSP filter node prefix, node groups, desktop entry, metainfo and
-icons. 42Hz reads none of EasyEffects' settings and runs alongside it without
+node names, DSP filter node prefix, node groups, desktop entry and metainfo.
+42Hz reads none of EasyEffects' settings and runs alongside it without
 collision.
 
 Modifications against the upstream base are applied by

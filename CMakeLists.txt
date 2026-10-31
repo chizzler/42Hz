@@ -2,7 +2,8 @@
 #
 # The EasyEffects-derived core lives under upstream/, which is fetched by
 # spike/fetch.sh, patched by spike/reduce-deps.py, and DISPOSABLE: never edit
-# it. 42Hz's own sources live in frontend/ and are tracked here.
+# it. 42Hz's own sources live in frontend/, its artwork in icons/, and both are
+# tracked here.
 #
 #     ./spike/fetch.sh
 #     ./spike/reduce-deps.py upstream/easyeffects-8.2.8
@@ -49,3 +50,16 @@ add_subdirectory(frontend)
 # licence of its own.
 include(GNUInstallDirs)
 install(FILES LICENSE DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/licenses/42hz)
+
+# 42Hz's own artwork, installed under the application ID the core declares, so
+# the ID keeps its single source in reduce-deps.py. The dot matrix is unreadable
+# below 32px, so 16-24px get a plain tile instead; hicolor lists its fixed sizes
+# before scalable/, so those win at the sizes they cover.
+get_directory_property(HZ_APP_ID DIRECTORY ${HZ_UPSTREAM_DIR} DEFINITION APPLICATION_ID)
+set(HZ_ICON_DIR ${CMAKE_INSTALL_DATAROOTDIR}/icons/hicolor)
+install(FILES icons/scalable.svg     DESTINATION ${HZ_ICON_DIR}/scalable/apps RENAME ${HZ_APP_ID}.svg)
+install(FILES icons/symbolic.svg     DESTINATION ${HZ_ICON_DIR}/scalable/apps RENAME ${HZ_APP_ID}-symbolic.svg)
+install(FILES icons/off-symbolic.svg DESTINATION ${HZ_ICON_DIR}/scalable/apps RENAME ${HZ_APP_ID}-off-symbolic.svg)
+foreach(size 16x16 22x22 24x24)
+    install(FILES icons/${size}.svg DESTINATION ${HZ_ICON_DIR}/${size}/apps RENAME ${HZ_APP_ID}.svg)
+endforeach()
