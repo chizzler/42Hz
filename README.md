@@ -13,6 +13,8 @@ is in [`docs/dev-diary.md`](docs/dev-diary.md).
 **Status:** milestones 1 to 5 complete. The first release candidate remains;
 its gated runbook is [`docs/release-plan.md`](docs/release-plan.md).
 
+**Install:** see [`INSTALL.md`](INSTALL.md).
+
 ## What it does
 
 The window is a live spectrum showing **absolute level** — a bar's height is the
