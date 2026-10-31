@@ -13,6 +13,48 @@ Detailed evidence is in `docs/spike-*.md`.
 
 ---
 
+## 2026-10-31 — 42Hz stops wearing somebody else's face
+
+**Commit:** `e9a2498`
+
+The Easy Effects icons are gone. 42Hz now installs its own: a 13×13 dot matrix
+with "42" picked out in red, a red dot on a grey tile for 16–24px, and a
+"42" glyph for the two symbolic variants. Upstream's four files are deleted by
+`reduce-deps.py` rather than renamed, so no route remains by which they could be
+installed. 42Hz's artwork lives in `icons/` and stays out of the patch
+inventory, as `frontend/` does. The design rationale is in `project.md`.
+
+**The draft was rebuilt, not converted.** The draft SVG was 169 paths on an A4
+page, with every dot about 0.15 units off its grid. Two grey dots in column 5
+also sat 1.2 units high. The second export gave each grey dot its own
+gradient, 119 in total; their stops line up into one field, so the icon uses
+one. The rebuild is 169 circles on an exact grid at 7 KB, and renders within
+0.2% of the draft's pixels.
+
+**The dot matrix does not survive small sizes.** At 16–24px it renders as grey
+fuzz with a faint red smudge, hence the separate tile. On dark backgrounds the
+translucent grey field disappears; that was reviewed and accepted.
+
+### Verified
+
+A fresh `fetch.sh`, `reduce-deps.py`, Release configure and build completed.
+A staged `cmake --install` produced exactly ten files: binary, desktop entry,
+metainfo, licence and six icons, all named `io.github.chizzler.42Hz*`. No Easy
+Effects artwork was installed. Every icon passes `xmllint`.
+
+### Still open
+
+- The icons have been rendered, not inspected installed on a desktop. The
+  release plan's artwork step requires that, at representative sizes, in a
+  launcher and a window list.
+- `-DENABLE_DEVEL=ON` fails to configure, before and after this change.
+  `reduce-deps.py` never creates the `.Devel` desktop entry or metainfo that the
+  core then asks for.
+- Nothing in 42Hz requests either symbolic icon.
+- The two commits of 2026-10-30, `dbc14a2` and `4aca939`, have no diary entry.
+
+---
+
 ## 2026-09-05 (fourth pass) — A release now has an entrance exam
 
 **Commit:** `c4026f9`
