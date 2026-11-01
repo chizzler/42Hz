@@ -102,7 +102,7 @@ than starting a second one.
 what 42Hz can see of the graph:
 
 ```
-42Hz 0.7.0 (Easy Effects core 8.2.8)
+42Hz 1.0.0-rc1 (Easy Effects core 8.2.8)
 io.github.chizzler.42Hz
 
   application     ready         an instance is already running

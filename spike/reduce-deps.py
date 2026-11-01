@@ -237,9 +237,13 @@ project(easyeffects VERSION ${HZ_VERSION} LANGUAGES CXX C)
 set(UPSTREAM_VERSION "${HZ_UPSTREAM_VERSION}")""")
 
 # ---- config.h.in: expose the base revision to C++ ----
+#
+# PROJECT_VERSION takes HZ_VERSION_STRING rather than CMake's numeric
+# PROJECT_VERSION, so --version, KAboutData and diagnostics carry the
+# prerelease suffix that project() cannot hold.
 def config_version(s):
     return sub(s, '#define PROJECT_VERSION "@PROJECT_VERSION@"',
-                  '#define PROJECT_VERSION "@PROJECT_VERSION@"\n'
+                  '#define PROJECT_VERSION "@HZ_VERSION_STRING@"\n'
                   '\n'
                   '// The Easy Effects release this core is derived from, kept\n'
                   '// distinct from PROJECT_VERSION, which is 42Hz\'s own.\n'
@@ -886,8 +890,8 @@ print("  removed upstream's 4 icons (42Hz installs its own from icons/)")
 # Upstream's metainfo is 65K of Easy Effects release notes. Shipping it under
 # the 42Hz application ID would be a false claim about what this program is,
 # so it is replaced with a minimal honest stub carrying only what is true.
-# It validates against appstreamcli with no errors; screenshots and a real
-# release history need published artefacts and are milestone 6.
+# It validates against appstreamcli with no errors; screenshots need published
+# artefacts and are still to come.
 (contents / "com.github.wwmm.easyeffects.metainfo.xml.in").unlink()
 (contents / f"{APP_ID}.metainfo.xml.in").write_text(f'''<?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop-application">
@@ -919,9 +923,12 @@ print("  removed upstream's 4 icons (42Hz installs its own from icons/)")
        stated. Omitting it leaves software centres showing "unknown". -->
   <content_rating type="oars-1.1"/>
 
-  <!-- No <releases>: an entry requires a date, and dating an unreleased
-       version would be inventing one. It arrives with the first published
-       release, in milestone 6. -->
+  <!-- One entry, for the release this tree is. Version and date come from
+       the top-level CMakeLists.txt, so they change with the tag and nowhere
+       else. -->
+  <releases>
+    <release version="@HZ_VERSION_STRING@" date="@HZ_RELEASE_DATE@" type="@HZ_RELEASE_TYPE@"/>
+  </releases>
 
   <url type="homepage">{HOMEPAGE}</url>
   <url type="bugtracker">{HOMEPAGE}/issues</url>

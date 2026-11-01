@@ -6,10 +6,18 @@
 # Easy Effects release that spike/reduce-deps.py rewrites.
 #
 # Build it from a checkout:   cd packaging && makepkg -si
+#
+# 42Hz's own source is the canonical archive published with the release, not
+# the checkout this file sits in, so a package builds the same from a
+# downloaded archive as from a clone. Place the archive beside this file to
+# build an unpublished candidate; makepkg uses a local copy before downloading.
 
 pkgname=42hz
-pkgver=0.7.0
-pkgrel=2
+pkgver=1.0.0rc1
+pkgrel=1
+# The version as 42Hz spells it. pacman forbids hyphens in pkgver, so pkgver
+# is this without one; prepare() checks both against CMakeLists.txt.
+_hzver=1.0.0-rc1
 pkgdesc='Ultra-minimal, Omarchy-native control surface for PipeWire audio'
 arch=('x86_64')
 url='https://github.com/chizzler/42Hz'
@@ -47,7 +55,7 @@ depends=(
 
 # nlohmann-json is header-only: upstream's configure requires it, but the
 # binary links nothing from it, so it is a build dependency and not a runtime one.
-makedepends=('cmake' 'ninja' 'extra-cmake-modules' 'python' 'git' 'nlohmann-json')
+makedepends=('cmake' 'ninja' 'extra-cmake-modules' 'python' 'nlohmann-json')
 
 # Two audio processors competing for the same streams and virtual-device role
 # is not a supported arrangement, and 42Hz reassigns every inherited identity
@@ -57,20 +65,26 @@ conflicts=('easyeffects')
 # Upstream's auto-generated archive. makepkg does the fetching and verifying
 # that spike/fetch.sh does for a development tree; the digest below is the same
 # TARBALL_SHA256 pinned there, and the two must be bumped together.
-source=("easyeffects-${_upstream_ver}.tar.gz::https://codeload.github.com/wwmm/easyeffects/tar.gz/refs/tags/v${_upstream_ver}")
-sha256sums=('0e241ad32a0147d180f9dd35181c8eea11e7d32309dda9b4b70b6b472189e45e')
+#
+# 42Hz's archive cannot carry its own digest: this file is inside it. Its
+# SHA-256 is published in SHA256SUMS on the release page instead.
+source=("$pkgname-$_hzver.tar.gz::$url/releases/download/v$_hzver/$pkgname-$_hzver.tar.gz"
+        "easyeffects-${_upstream_ver}.tar.gz::https://codeload.github.com/wwmm/easyeffects/tar.gz/refs/tags/v${_upstream_ver}")
+sha256sums=('SKIP'
+            '0e241ad32a0147d180f9dd35181c8eea11e7d32309dda9b4b70b6b472189e45e')
 
 prepare() {
-  # 42Hz's own source comes from the checkout this PKGBUILD lives in, taken at
-  # HEAD through git archive rather than copied: that excludes build trees, the
-  # disposable upstream/ directory and anything untracked, so the package is
-  # built from a commit rather than from whatever the working tree happens to
-  # hold.
-  rm -rf "$srcdir/$pkgname"
-  mkdir -p "$srcdir/$pkgname"
-  git -C "$startdir/.." archive --format=tar HEAD | tar -x -C "$srcdir/$pkgname"
+  cd "$srcdir/$pkgname-$_hzver"
 
-  cd "$srcdir/$pkgname"
+  # The version this package claims must be the one the tree builds, or
+  # --version, AppStream and pacman would each name a different release.
+  local hzver
+  hzver=$(sed -n 's/^set(HZ_VERSION \(.*\))$/\1/p' CMakeLists.txt)
+  hzver+=$(sed -n 's/^set(HZ_VERSION_SUFFIX \(.*\))$/\1/p' CMakeLists.txt)
+  if [[ $hzver != "$_hzver" || ${_hzver/-/} != "$pkgver" ]]; then
+    echo "error: PKGBUILD is $_hzver ($pkgver), CMakeLists.txt is $hzver" >&2
+    return 1
+  fi
 
   # The build root resolves upstream/easyeffects-<ver> relative to itself, and
   # names the version it expects. Disagreement here means _upstream_ver above
@@ -93,7 +107,7 @@ prepare() {
 }
 
 build() {
-  cd "$srcdir/$pkgname"
+  cd "$srcdir/$pkgname-$_hzver"
   cmake -B build -S . -G Ninja \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX=/usr \
@@ -103,6 +117,6 @@ build() {
 }
 
 package() {
-  cd "$srcdir/$pkgname"
+  cd "$srcdir/$pkgname-$_hzver"
   DESTDIR="$pkgdir" cmake --install build
 }

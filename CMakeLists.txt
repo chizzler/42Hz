@@ -17,7 +17,21 @@ project(42hz LANGUAGES CXX C)
 # 42Hz's own version, distinct from the core it is derived from. Bump it here
 # and nowhere else: reduce-deps.py wires this into the patched tree's project()
 # call, so it reaches --version, KAboutData and the AppStream metadata.
-set(HZ_VERSION 0.7.0)
+#
+# project(VERSION) accepts numbers only, so a prerelease suffix is kept apart
+# and joined into HZ_VERSION_STRING, which is what users see. The PKGBUILD's
+# pkgver is that string without its hyphen, and prepare() checks the two agree.
+# HZ_RELEASE_DATE is the date of the release this version names; AppStream
+# requires one, so it changes with every tag.
+set(HZ_VERSION 1.0.0)
+set(HZ_VERSION_SUFFIX -rc1)
+set(HZ_VERSION_STRING ${HZ_VERSION}${HZ_VERSION_SUFFIX})
+set(HZ_RELEASE_DATE 2026-11-01)
+if(HZ_VERSION_SUFFIX)
+    set(HZ_RELEASE_TYPE development)
+else()
+    set(HZ_RELEASE_TYPE stable)
+endif()
 
 set(HZ_UPSTREAM_VERSION 8.2.8)
 set(HZ_UPSTREAM_DIR upstream/easyeffects-${HZ_UPSTREAM_VERSION})
