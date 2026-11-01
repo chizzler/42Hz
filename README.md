@@ -10,8 +10,9 @@ that tracks the active Omarchy theme.
 Design and constraints are in [`project.md`](project.md); the development record
 is in [`docs/dev-diary.md`](docs/dev-diary.md).
 
-**Status:** milestones 1 to 5 complete. The first release candidate remains;
-its gated runbook is [`docs/release-plan.md`](docs/release-plan.md).
+**Status:** first release candidate, `1.0.0-rc1`, published as a
+[prerelease](https://github.com/chizzler/42Hz/releases/tag/v1.0.0-rc1). Its
+gated runbook is [`docs/release-plan.md`](docs/release-plan.md).
 
 **Install:** see [`INSTALL.md`](INSTALL.md).
 

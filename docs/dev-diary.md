@@ -13,6 +13,53 @@ Detailed evidence is in `docs/spike-*.md`.
 
 ---
 
+## 2026-11-01 — 1.0.0-rc1 goes public
+
+**Commit:** `6bc9c4a` (tag `v1.0.0-rc1`)
+
+**Decision: the candidate is `1.0.0-rc1`.** `project()` takes numbers only, so
+`HZ_VERSION` stays `1.0.0` and `HZ_VERSION_SUFFIX` carries `-rc1`. They join
+into `HZ_VERSION_STRING`, which is what `--version`, `KAboutData`, diagnostics
+and AppStream show. pacman forbids the hyphen, so `pkgver` is `1.0.0rc1`, and
+`prepare()` rejects any disagreement. AppStream has its first `<release>`.
+
+**The PKGBUILD blocker is gone.** It fetches the canonical archive from the
+release page instead of running `git archive` on its parent checkout. That
+archive contains the PKGBUILD, so it cannot hold its own digest: the entry is
+`SKIP` and the SHA-256 is in `SHA256SUMS` on the release. `git` left
+`makedepends`.
+
+**Decision: annotated, unsigned.** Checksums give integrity, not authorship.
+Signing can come later without moving this tag.
+
+`spike/source-archive.sh` builds the archive from an annotated tag with commit
+mtimes and `gzip -n`, so anyone can rebuild it and match the checksum.
+
+### Verified
+
+- Fresh `fetch.sh`, `reduce-deps.py`, Release build: `42hz 1.0.0-rc1`.
+  `appstreamcli validate` passes with only the accepted numeric-ID info.
+- Two archive builds, a second apart, gave the same bytes:
+  `4b8b7205…9ea8`.
+- The package built from an extracted archive with no `.git`. The payload is the
+  same ten files. `namcap` shows only the warnings already audited.
+- After publishing, the three assets were downloaded fresh and passed
+  `sha256sum -c SHA256SUMS`. The remote tag resolves to `6bc9c4a`. A package
+  built from the downloaded archive, with makepkg fetching its source from the
+  release URL, completed.
+- Andrew tested the build by hand: EQ and visuals behave.
+
+### Still open
+
+- The scripted gates were not run in full: `recovery.sh`, the geometry sweep,
+  theme switching, and install, upgrade and removal on a clean machine.
+  Any failure there ships as rc2. rc1 is not touched.
+- AppStream still has no screenshots.
+- The icons have still not been inspected installed on a desktop.
+- `-DENABLE_DEVEL=ON` still fails to configure.
+
+---
+
 ## 2026-10-31 — 42Hz stops wearing somebody else's face
 
 **Commit:** `e9a2498`
